@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://ceulb3k0j47jj"]
+
+[ext_resource type="Script" uid="uid://qqtn4ar2oqwr" path="res://note.gd" id="1_doocs"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_pxqgl"]
+
+[node name="Note" type="Area2D" unique_id=346896132 groups=["notes"]]
+script = ExtResource("1_doocs")
+
+[node name="Polygon2D" type="Polygon2D" parent="." unique_id=1035435788]
+scale = Vector2(10, 10)
+polygon = PackedVector2Array(0, -2, -1, 0, 0, 2, 1, 0)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=130546530]
+scale = Vector2(1.9, 1.9)
+shape = SubResource("CircleShape2D_pxqgl")

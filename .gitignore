@@ -1,0 +1,36 @@
+# Godot 4
+.godot/
+
+# Godot import/cache files
+.import/
+
+# Exported builds
+/export/
+/exports/
+
+# IDE / editor files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*~
+
+# Logs
+*.log
+
+# Build artifacts
+bin/
+obj/
+
+# C# / .NET artifacts, if C# is ever used
+.csproj
+.sln
+.nuget/

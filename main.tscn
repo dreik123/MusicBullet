@@ -1,0 +1,23 @@
+[gd_scene format=3 uid="uid://dtri3r2kg1naw"]
+
+[ext_resource type="Script" uid="uid://p1r15we5q23i" path="res://main.gd" id="1_1bvp3"]
+[ext_resource type="Script" uid="uid://dhfwfg8v7mbu" path="res://player.gd" id="1_ig7tw"]
+[ext_resource type="PackedScene" uid="uid://ci2aychi0b1aw" path="res://projectile.tscn" id="2_h2yge"]
+[ext_resource type="PackedScene" uid="uid://ceulb3k0j47jj" path="res://note.tscn" id="3_h2yge"]
+
+[node name="Main" type="Node2D" unique_id=1273822440]
+script = ExtResource("1_1bvp3")
+note_scene = ExtResource("3_h2yge")
+
+[node name="Player" type="CharacterBody2D" parent="." unique_id=1530688737]
+position = Vector2(576, 324)
+script = ExtResource("1_ig7tw")
+projectile_scene = ExtResource("2_h2yge")
+
+[node name="Polygon2D" type="Polygon2D" parent="Player" unique_id=1802522249]
+position = Vector2(-20, 0)
+rotation = -1.5707964
+polygon = PackedVector2Array(-2.4478377e-06, 56, -22, -2.000001, 22, -1.999999)
+
+[node name="Muzzle" type="Marker2D" parent="Player" unique_id=487350122]
+position = Vector2(30, 0)
