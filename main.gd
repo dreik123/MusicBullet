@@ -67,7 +67,8 @@ func spawn_note(note_data):
 	note.setup(
 		note_data["time"] - note_travel_time,
 		note_data["pitch"],
-		player_position
+		player_position,
+		note_data["time"]
 	)
 
 func get_note_spawn_radius():

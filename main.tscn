@@ -24,3 +24,5 @@ position = Vector2(30, 0)
 z_index = -1
 width = 2.0
 default_color = Color(0.55, 0.75, 1, 0.35)
+
+[node name="NoteAudio" type="AudioStreamPlayer" parent="Player"]
