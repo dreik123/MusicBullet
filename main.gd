@@ -2,6 +2,11 @@ extends Node2D
 
 @export var note_scene: PackedScene
 
+const NOTE_SPAWN_MARGIN = 100.0
+const PITCH_ANGLE_STEP = 15.0
+const MIN_SPAWN_ANGLE = -180.0
+const MAX_SPAWN_ANGLE = 0.0
+
 var music_time = 0.0
 var next_note_index = 0
 var recorded_notes = []
@@ -50,12 +55,32 @@ func spawn_note(note_data):
 	var note = note_scene.instantiate()
 	add_child(note)
 
+	var viewport_rect = get_viewport_rect()
+	var viewport_size = viewport_rect.size
+	var half_screen_diagonal = sqrt(
+		pow(viewport_size.x / 2.0, 2) + pow(viewport_size.y / 2.0, 2)
+	)
+	var player_position = $Player.global_position
+	var farthest_corner_distance = max(
+		max(
+			player_position.distance_to(viewport_rect.position),
+			player_position.distance_to(Vector2(viewport_rect.end.x, viewport_rect.position.y))
+		),
+		max(
+			player_position.distance_to(Vector2(viewport_rect.position.x, viewport_rect.end.y)),
+			player_position.distance_to(viewport_rect.end)
+		)
+	)
+	var spawn_radius = max(half_screen_diagonal, farthest_corner_distance) + NOTE_SPAWN_MARGIN
+	var spawn_angle = clamp(
+		-90.0 + (note_data["pitch"] - 60) * PITCH_ANGLE_STEP,
+		MIN_SPAWN_ANGLE,
+		MAX_SPAWN_ANGLE
+	)
+	note.global_position = player_position + Vector2.from_angle(deg_to_rad(spawn_angle)) * spawn_radius
+
 	note.setup(
 		note_data["time"] - note_travel_time,
-		note_data["pitch"]
-	)
-
-	note.position = Vector2(
-		576 + note.note_speed * note_travel_time,
-		300 - (note.pitch - 60) * 20
+		note_data["pitch"],
+		player_position
 	)
