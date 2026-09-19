@@ -55,6 +55,22 @@ func spawn_note(note_data):
 	var note = note_scene.instantiate()
 	add_child(note)
 
+	var player_position = $Player.global_position
+	var spawn_radius = get_note_spawn_radius()
+	var spawn_angle = clamp(
+		-90.0 + (note_data["pitch"] - 60) * PITCH_ANGLE_STEP,
+		MIN_SPAWN_ANGLE,
+		MAX_SPAWN_ANGLE
+	)
+	note.global_position = player_position + Vector2.from_angle(deg_to_rad(spawn_angle)) * spawn_radius
+
+	note.setup(
+		note_data["time"] - note_travel_time,
+		note_data["pitch"],
+		player_position
+	)
+
+func get_note_spawn_radius():
 	var viewport_rect = get_viewport_rect()
 	var viewport_size = viewport_rect.size
 	var half_screen_diagonal = sqrt(
@@ -71,16 +87,4 @@ func spawn_note(note_data):
 			player_position.distance_to(viewport_rect.end)
 		)
 	)
-	var spawn_radius = max(half_screen_diagonal, farthest_corner_distance) + NOTE_SPAWN_MARGIN
-	var spawn_angle = clamp(
-		-90.0 + (note_data["pitch"] - 60) * PITCH_ANGLE_STEP,
-		MIN_SPAWN_ANGLE,
-		MAX_SPAWN_ANGLE
-	)
-	note.global_position = player_position + Vector2.from_angle(deg_to_rad(spawn_angle)) * spawn_radius
-
-	note.setup(
-		note_data["time"] - note_travel_time,
-		note_data["pitch"],
-		player_position
-	)
+	return max(half_screen_diagonal, farthest_corner_distance) + NOTE_SPAWN_MARGIN
