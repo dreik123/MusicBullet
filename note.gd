@@ -13,13 +13,16 @@ var direction: Vector2
 
 @onready var visual = $Polygon2D
 
+func _ready():
+	print("Note created, groups: ", get_groups())
+
 func setup(note_time: float, note_pitch: int, note_target_position: Vector2, note_arrival_time: float):
 	time = note_time
 	pitch = note_pitch
 	arrival_time = note_arrival_time
 	target_position = note_target_position
 	direction = global_position.direction_to(target_position)
-	var entry_ratio = get_viewport_entry_ratio(global_position, target_position, get_viewport_rect())
+	var entry_ratio = get_parent().get_viewport_entry_ratio(global_position, target_position, get_viewport_rect())
 	if entry_ratio >= 0.0:
 		var entry_position = global_position.lerp(target_position, entry_ratio)
 		visible_duration = entry_position.distance_to(target_position) / note_speed
@@ -41,33 +44,3 @@ func _process(delta):
 		return
 
 	global_position += direction * note_speed * delta
-
-func get_viewport_entry_ratio(start_position: Vector2, end_position: Vector2, viewport_rect: Rect2):
-	var delta = end_position - start_position
-	var p = [-delta.x, delta.x, -delta.y, delta.y]
-	var q = [
-		start_position.x - viewport_rect.position.x,
-		viewport_rect.end.x - start_position.x,
-		start_position.y - viewport_rect.position.y,
-		viewport_rect.end.y - start_position.y
-	]
-	var entry_ratio = 0.0
-	var exit_ratio = 1.0
-
-	for index in p.size():
-		if is_zero_approx(p[index]):
-			if q[index] < 0.0:
-				return -1.0
-			continue
-
-		var ratio = q[index] / p[index]
-		if p[index] < 0.0:
-			if ratio > exit_ratio:
-				return -1.0
-			entry_ratio = max(entry_ratio, ratio)
-		else:
-			if ratio < entry_ratio:
-				return -1.0
-			exit_ratio = min(exit_ratio, ratio)
-
-	return entry_ratio

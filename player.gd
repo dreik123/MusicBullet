@@ -44,6 +44,8 @@ func update_aim_line():
 	
 func _input(event):
 	if event.is_action_pressed("shoot"):
+		if get_tree().current_scene.get("level_ended"):
+			return
 		shoot()
 		
 func shoot():
