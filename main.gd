@@ -15,23 +15,81 @@ var note_travel_time = 2.0
 var level_ended = false
 
 var notes = [
-		{
-			"time": 0.0,
-			"pitch": 60
-		},
-		{
-			"time": 1.0,
-			"pitch": 62
-		},
-		{
-			"time": 2.0,
-			"pitch": 64
-		},
-		{
-			"time": 3.0,
-			"pitch": 62
-		},
-
+	{"time": 0.0, "pitches": [64]},
+	{"time": 0.5, "pitches": [69]},
+	{"time": 0.75, "pitches": [72]},
+	{"time": 1.0, "pitches": [71]},
+	{"time": 2.0, "pitches": [65]},
+	{"time": 2.5, "pitches": [72]},
+	{"time": 2.75, "pitches": [71]},
+	{"time": 3.0, "pitches": [69]},
+	{"time": 3.25, "pitches": [67]},
+	{"time": 3.75, "pitches": [69]},
+	{"time": 4.0, "pitches": [67]},
+	{"time": 4.25, "pitches": [67]},
+	{"time": 4.5, "pitches": [67]},
+	{"time": 5.0, "pitches": [63]},
+	{"time": 5.25, "pitches": [65]},
+	{"time": 5.5, "pitches": [67]},
+	{"time": 5.75, "pitches": [65]},
+	{"time": 6.0, "pitches": [63]},
+	{"time": 6.25, "pitches": [62]},
+	{"time": 6.5, "pitches": [63]},
+	{"time": 7.0, "pitches": [67]},
+	{"time": 7.25, "pitches": [65]},
+	{"time": 7.5, "pitches": [70]},
+	{"time": 7.75, "pitches": [72]},
+	{"time": 8.0, "pitches": [71]},
+	{"time": 8.25, "pitches": [69]},
+	{"time": 8.5, "pitches": [67]},
+	{"time": 8.75, "pitches": [69]},
+	{"time": 9.0, "pitches": [71]},
+	{"time": 10.0, "pitches": [67]},
+	{"time": 11.0, "pitches": [70, 72]},
+	{"time": 11.5, "pitches": [70, 72]},
+	{"time": 12.0, "pitches": [69, 70]},
+	{"time": 12.5, "pitches": [69, 70]},
+	{"time": 13.0, "pitches": [67]},
+	{"time": 14.0, "pitches": [67]},
+	{"time": 14.25, "pitches": [65]},
+	{"time": 14.5, "pitches": [62]},
+	{"time": 14.75, "pitches": [65]},
+	{"time": 15.0, "pitches": [60, 67]},
+	{"time": 15.5, "pitches": [60, 67]},
+	{"time": 16.0, "pitches": [67]},
+	{"time": 16.5, "pitches": [60, 67]},
+	{"time": 17.0, "pitches": [63]},
+	{"time": 17.5, "pitches": [59, 65]},
+	{"time": 18.0, "pitches": [67]},
+	{"time": 18.5, "pitches": [59, 65]},
+	{"time": 19.0, "pitches": [62]},
+	{"time": 19.5, "pitches": [55, 62]},
+	{"time": 20.0, "pitches": [63]},
+	{"time": 20.25, "pitches": [67, 74]},
+	{"time": 20.5, "pitches": [67, 74]},
+	{"time": 21.0, "pitches": [60, 63, 67]},
+	{"time": 21.5, "pitches": [60, 63, 67]},
+	{"time": 22.0, "pitches": [55]},
+	{"time": 22.25, "pitches": [57]},
+	{"time": 22.5, "pitches": [60]},
+	{"time": 23.5, "pitches": [60]},
+	{"time": 24.0, "pitches": [60]},
+	{"time": 24.25, "pitches": [59]},
+	{"time": 24.5, "pitches": [57]},
+	{"time": 24.75, "pitches": [55]},
+	{"time": 26.0, "pitches": [64, 69]},
+	{"time": 26.5, "pitches": [67]},
+	{"time": 27.0, "pitches": [62]},
+	{"time": 27.5, "pitches": [67]},
+	{"time": 28.0, "pitches": [60, 69]},
+	{"time": 28.25, "pitches": [57, 65]},
+	{"time": 28.5, "pitches": [69]},
+	{"time": 29.5, "pitches": [64, 71]},
+	{"time": 30.0, "pitches": [74]},
+	{"time": 30.5, "pitches": [76]},
+	{"time": 31.0, "pitches": [76]},
+	{"time": 31.5, "pitches": [72, 83]},
+	{"time": 32.0, "pitches": [67]},
 ]
 
 func _ready():
@@ -61,8 +119,13 @@ func spawn_note(note_data):
 	add_child(note)
 
 	var player_position = $Player.global_position
+	var pitches = note_data["pitches"]
+	var lowest_pitch = pitches[0]
+	for p in pitches:
+		if p < lowest_pitch:
+			lowest_pitch = p
 	var spawn_angle = clamp(
-		-90.0 + (note_data["pitch"] - 60) * PITCH_ANGLE_STEP,
+		-90.0 + (lowest_pitch - 60) * PITCH_ANGLE_STEP,
 		MIN_SPAWN_ANGLE,
 		MAX_SPAWN_ANGLE
 	)
@@ -82,7 +145,7 @@ func spawn_note(note_data):
 
 	note.setup(
 		note_data["time"] - note_travel_time,
-		note_data["pitch"],
+		pitches,
 		player_position,
 		note_data["time"]
 	)
@@ -150,13 +213,22 @@ func play_recorded_melody():
 		var was_hit = false
 		for recorded in recorded_notes:
 			var orig_time = recorded["time"] - recorded["error"] + note_travel_time
-			if abs(orig_time - current_time) < 0.01 and recorded["pitch"] == chart_note["pitch"]:
-				was_hit = true
-				break
+			if abs(orig_time - current_time) < 0.01:
+				var chart_pitches = chart_note["pitches"]
+				var recorded_pitches = recorded["pitches"]
+				var all_match = true
+				for pitch in chart_pitches:
+					if not recorded_pitches.contains(pitch):
+						all_match = false
+						break
+				if all_match:
+					was_hit = true
+					break
 		
 		if was_hit:
-			print("Melody playback: playing pitch ", chart_note["pitch"], " at chart_time ", current_time)
-			play_melody_sound(chart_note["pitch"])
+			print("Melody playback: playing pitches ", chart_note["pitches"], " at chart_time ", current_time)
+			for pitch in chart_note["pitches"]:
+				play_melody_sound(pitch)
 		else:
 			print("Melody playback: silence (missed note) at chart_time ", current_time)
 			

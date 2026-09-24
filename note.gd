@@ -4,7 +4,7 @@ const COLOR_FAR = Color(0.35, 0.55, 0.85, 1.0)
 const COLOR_NEAR = Color(1.0, 0.5, 0.2, 1.0)
 
 @export var time: float
-@export var pitch: int
+@export var pitches: Array
 @export var note_speed = 100.0
 var arrival_time: float
 var visible_duration = 0.0
@@ -16,9 +16,9 @@ var direction: Vector2
 func _ready():
 	print("Note created, groups: ", get_groups())
 
-func setup(note_time: float, note_pitch: int, note_target_position: Vector2, note_arrival_time: float):
+func setup(note_time: float, note_pitches: Array, note_target_position: Vector2, note_arrival_time: float):
 	time = note_time
-	pitch = note_pitch
+	pitches = note_pitches
 	arrival_time = note_arrival_time
 	target_position = note_target_position
 	direction = global_position.direction_to(target_position)
