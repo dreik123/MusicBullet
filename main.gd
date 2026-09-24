@@ -218,7 +218,7 @@ func play_recorded_melody():
 				var recorded_pitches = recorded["pitches"]
 				var all_match = true
 				for pitch in chart_pitches:
-					if not recorded_pitches.contains(pitch):
+					if not recorded_pitches.has(pitch):
 						all_match = false
 						break
 				if all_match:
