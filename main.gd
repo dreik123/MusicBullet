@@ -141,11 +141,7 @@ func spawn_note(note_data):
 	for p in pitches:
 		if p < lowest_pitch:
 			lowest_pitch = p
-	var spawn_angle = clamp(
-		-90.0 + (lowest_pitch - 60) * PITCH_ANGLE_STEP,
-		MIN_SPAWN_ANGLE,
-		MAX_SPAWN_ANGLE
-	)
+	var spawn_angle = _get_spawn_angle_for_pitch(lowest_pitch)
 	
 	var outward_direction = Vector2.from_angle(deg_to_rad(spawn_angle))
 	var far_outside_point = player_position + outward_direction * 5000.0
