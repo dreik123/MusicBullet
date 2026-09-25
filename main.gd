@@ -13,6 +13,8 @@ var recorded_notes = []
 var score = 0
 var note_travel_time = 2.0
 var level_ended = false
+var _min_pitch = 0
+var _max_pitch = 127
 
 var notes = [
 	{"time": 0.0, "pitches": [64]},
