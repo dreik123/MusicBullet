@@ -2,10 +2,8 @@ extends Node2D
 
 @export var note_scene: PackedScene
 
+
 const NOTE_SPAWN_MARGIN = 100.0
-const PITCH_ANGLE_STEP = 15.0
-const MIN_SPAWN_ANGLE = -180.0
-const MAX_SPAWN_ANGLE = 0.0
 
 var music_time = 0.0
 var next_note_index = 0

@@ -20,9 +20,9 @@ polygon = PackedVector2Array(-2.4478377e-06, 56, -22, -2.000001, 22, -1.999999)
 [node name="Muzzle" type="Marker2D" parent="Player" unique_id=487350122]
 position = Vector2(30, 0)
 
-[node name="AimLine" type="Line2D" parent="Player"]
+[node name="AimLine" type="Line2D" parent="Player" unique_id=545343929]
 z_index = -1
 width = 2.0
 default_color = Color(0.55, 0.75, 1, 0.35)
 
-[node name="NoteAudio" type="AudioStreamPlayer" parent="Player"]
+[node name="NoteAudio" type="AudioStreamPlayer" parent="Player" unique_id=210725538]
