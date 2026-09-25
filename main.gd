@@ -95,6 +95,18 @@ var notes = [
 ]
 
 func _ready():
+	# Initialize _min_pitch and _max_pitch
+	_min_pitch = 127
+	_max_pitch = 0
+	
+	# Find min and max pitch in the notes array
+	for note in notes:
+		for pitch in note["pitches"]:
+			_min_pitch = min(_min_pitch, pitch)
+			_max_pitch = max(_max_pitch, pitch)
+	
+	print("Pitch range: ", _min_pitch, "to", _max_pitch)
+	
 	music_time = -note_travel_time
 	spawn_due_notes()
 
