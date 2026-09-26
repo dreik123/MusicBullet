@@ -37,8 +37,10 @@ func _process(delta):
 		queue_free()
 		return
 
-	var time_until_arrival = arrival_time - main.music_time
+	var ring_arrival_time = arrival_time - (miss_boundary_radius / note_speed)
+	var time_until_arrival = ring_arrival_time - main.music_time
 	var heat = 0.0
+	
 	if time_until_arrival <= visible_duration:
 		var peak = visible_duration / 2.0
 		if peak > 0.0:
