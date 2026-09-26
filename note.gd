@@ -29,13 +29,21 @@ func setup(note_time: float, note_pitches: Array, note_target_position: Vector2,
 
 func _process(delta):
 	var main = get_tree().current_scene
+	var player = main.get_node("Player")
+	var miss_boundary_radius = player.get_node("MissBoundary").MISS_BOUNDARY_RADIUS
+	var distance_to_player = global_position.distance_to(player.global_position)
+
+	if distance_to_player <= miss_boundary_radius:
+		queue_free()
+		return
+
 	var time_until_arrival = arrival_time - main.music_time
 	var heat = 0.0
 	if time_until_arrival <= visible_duration:
 		var peak = visible_duration / 2.0
 		if peak > 0.0:
 			heat = clamp(1.0 - abs(time_until_arrival - peak) / peak, 0.0, 1.0)
-	visual.self_modulate = COLOR_FAR.lerp(COLOR_NEAR, heat)
+		visual.self_modulate = COLOR_FAR.lerp(COLOR_NEAR, heat)
 
 	var distance_to_target = global_position.distance_to(target_position)
 	if distance_to_target <= note_speed * delta:
