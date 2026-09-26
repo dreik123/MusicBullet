@@ -97,6 +97,13 @@ func _get_spawn_angle_for_pitch(pitch):
 
 func _ready():
 	# Initialize _min_pitch and _max_pitch
+	create_miss_boundary()
+
+func create_miss_boundary():
+	var miss_boundary = load("res://miss_boundary.gd").new()
+	miss_boundary.name = "MissBoundary"
+	$Player.add_child(miss_boundary)
+	print("Miss boundary node created")
 	_min_pitch = 127
 	_max_pitch = 0
 	
