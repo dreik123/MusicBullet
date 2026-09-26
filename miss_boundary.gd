@@ -1,6 +1,9 @@
 extends Node2D
 
-const MISS_RADIUS = 150.0
+const MISS_RADIUS = 168.0
+@export var MISS_BOUNDARY_RADIUS = MISS_RADIUS
+var _miss_boundary_radius: float = MISS_BOUNDARY_RADIUS
+
 const STROKE_COLOR = Color(1, 1, 1, 0.6)
 const STROKE_WIDTH = 3.0
 
