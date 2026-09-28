@@ -5,6 +5,8 @@ extends Node2D
 
 const NOTE_SPAWN_MARGIN = 100.0
 
+const LANE_COUNT = 8
+
 var music_time = 0.0
 var next_note_index = 0
 var recorded_notes = []
@@ -98,6 +100,7 @@ func _get_spawn_angle_for_pitch(pitch):
 func _ready():
 	# Initialize _min_pitch and _max_pitch
 	create_miss_boundary()
+	print("lane test: ", _get_lane_angle_for_pitch(_min_pitch), " / ", _get_lane_angle_for_pitch(_max_pitch))
 
 func create_miss_boundary():
 	var miss_boundary = load("res://miss_boundary.gd").new()
@@ -106,12 +109,18 @@ func create_miss_boundary():
 	print("Miss boundary node created")
 	_min_pitch = 127
 	_max_pitch = 0
-	
+
 	# Find min and max pitch in the notes array
 	for note in notes:
 		for pitch in note["pitches"]:
 			_min_pitch = min(_min_pitch, pitch)
 			_max_pitch = max(_max_pitch, pitch)
+
+func _get_lane_angle_for_pitch(pitch):
+	var range_size = max(_max_pitch - _min_pitch, 1)
+	var t = float(pitch - _min_pitch) / float(range_size)
+	var lane = clamp(int(floor(t * LANE_COUNT)), 0, LANE_COUNT - 1)
+	return -180.0 + lane * (360.0 / LANE_COUNT)
 	
 	print("Pitch range: ", _min_pitch, "to", _max_pitch)
 	
