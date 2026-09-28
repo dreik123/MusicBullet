@@ -9,7 +9,7 @@ var music_time = 0.0
 var next_note_index = 0
 var recorded_notes = []
 var score = 0
-var note_travel_time = 2.0
+var note_travel_time = 3.5
 var level_ended = false
 var _min_pitch = 0
 var _max_pitch = 127
@@ -147,34 +147,6 @@ func spawn_note(note_data):
 		if p < lowest_pitch:
 			lowest_pitch = p
 	var spawn_angle = _get_spawn_angle_for_pitch(lowest_pitch)
-# Ensure minimum angular separation from existing active notes
-	var active_notes = get_tree().get_nodes_in_group("notes")
-	var attempts = 0
-	var max_attempts = 5
-	var angle_diff_threshold = 25.0
-
-	while attempts < max_attempts:
-		var is_too_close = false
-		for active_note in active_notes:
-			if not active_note.is_queued_for_deletion():
-				var active_angle = active_note.global_position.angle_to(player_position)
-				var angle_diff = abs(spawn_angle - active_angle)
-				if angle_diff < angle_diff_threshold:
-					is_too_close = true
-					break
-		
-		if not is_too_close:
-			break
-		
-		# Adjust spawn_angle by +30 degrees and wrap around if needed
-		spawn_angle += 30
-		if spawn_angle >= 360:
-			spawn_angle -= 360
-		attempts += 1
-
-	# If still too close after max attempts, use the last computed angle
-	if attempts == max_attempts:
-		print("Warning: Could not find a suitable spawn angle after", max_attempts, "attempts.")
 	
 	var outward_direction = Vector2.from_angle(deg_to_rad(spawn_angle))
 	var far_outside_point = player_position + outward_direction * 5000.0
