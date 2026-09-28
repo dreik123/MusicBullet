@@ -100,7 +100,6 @@ func _get_spawn_angle_for_pitch(pitch):
 func _ready():
 	# Initialize _min_pitch and _max_pitch
 	create_miss_boundary()
-	print("lane test: ", _get_lane_angle_for_pitch(_min_pitch), " / ", _get_lane_angle_for_pitch(_max_pitch))
 
 func create_miss_boundary():
 	var miss_boundary = load("res://miss_boundary.gd").new()
@@ -155,7 +154,7 @@ func spawn_note(note_data):
 	for p in pitches:
 		if p < lowest_pitch:
 			lowest_pitch = p
-	var spawn_angle = _get_spawn_angle_for_pitch(lowest_pitch)
+	var spawn_angle = _get_lane_angle_for_pitch(lowest_pitch)
 	
 	var outward_direction = Vector2.from_angle(deg_to_rad(spawn_angle))
 	var far_outside_point = player_position + outward_direction * 5000.0
