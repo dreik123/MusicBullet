@@ -33,7 +33,6 @@ func _process(delta):
 	var mouse_pos = get_global_mouse_position()
 	var mouse_dir = mouse_pos - global_position
 	var mouse_angle_rad = mouse_dir.angle()
-	var mouse_angle_deg = deg_to_rad(mouse_angle_rad)
 	var snapped_angle_rad = get_tree().current_scene._snap_angle_to_lane_rad(mouse_angle_rad)
 	set_global_rotation(snapped_angle_rad)
 	update_aim_line()
