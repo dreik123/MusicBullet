@@ -1,6 +1,6 @@
 extends Node2D
 
-const MISS_RADIUS = 168.0
+const MISS_RADIUS = 100.0
 @export var MISS_BOUNDARY_RADIUS = MISS_RADIUS
 var _miss_boundary_radius: float = MISS_BOUNDARY_RADIUS
 

@@ -13,8 +13,9 @@ position = Vector2(576, 324)
 script = ExtResource("1_ig7tw")
 
 [node name="Polygon2D" type="Polygon2D" parent="Player" unique_id=1802522249]
-position = Vector2(-20, 0)
+position = Vector2(-10, 0)
 rotation = -1.5707964
+scale = Vector2(0.5, 0.5)
 polygon = PackedVector2Array(-2.4478377e-06, 56, -22, -2.000001, 22, -1.999999)
 
 [node name="Muzzle" type="Marker2D" parent="Player" unique_id=487350122]

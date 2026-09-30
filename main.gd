@@ -94,9 +94,6 @@ var notes = [
 	{"time": 32.0, "pitches": [67]},
 ]
 
-func _get_spawn_angle_for_pitch(pitch):
-	return remap(pitch, _min_pitch, _max_pitch, -180.0, 180.0)
-
 func _ready():
 	# Initialize _min_pitch and _max_pitch
 	create_miss_boundary()
