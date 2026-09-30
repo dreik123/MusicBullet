@@ -117,6 +117,9 @@ func _snap_angle_to_lane(angle_degrees: float) -> float:
 	var lane = round(angle_degrees / lane_size)
 	return lane * lane_size
 
+func _snap_angle_to_lane_rad(angle_rad: float) -> float:
+	return deg_to_rad(_snap_angle_to_lane(deg_to_rad(angle_rad)))
+
 func _get_lane_angle_for_pitch(pitch):
 	var range_size = max(_max_pitch - _min_pitch, 1)
 	var t = float(pitch - _min_pitch) / float(range_size)
