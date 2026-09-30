@@ -112,6 +112,11 @@ func create_miss_boundary():
 			_min_pitch = min(_min_pitch, pitch)
 			_max_pitch = max(_max_pitch, pitch)
 
+func _snap_angle_to_lane(angle_degrees: float) -> float:
+	var lane_size = 360.0 / LANE_COUNT
+	var lane = round(angle_degrees / lane_size)
+	return lane * lane_size
+
 func _get_lane_angle_for_pitch(pitch):
 	var range_size = max(_max_pitch - _min_pitch, 1)
 	var t = float(pitch - _min_pitch) / float(range_size)
