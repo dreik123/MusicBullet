@@ -111,6 +111,19 @@ func create_miss_boundary():
 		for pitch in note["pitches"]:
 			_min_pitch = min(_min_pitch, pitch)
 			_max_pitch = max(_max_pitch, pitch)
+	# Compute travel_time for each note entry
+	for i in range(notes.size()):
+		if i == 0:
+			notes[i]["travel_time"] = 3.0
+		else:
+			var gap = notes[i]["time"] - notes[i-1]["time"]
+			notes[i]["travel_time"] = clamp(remap(gap, 0.25, 1.25, 1.2, 3.0), 1.2, 3.0)
+
+	# Print first 5 travel_times
+	var travel_times = []
+	for i in range(min(5, notes.size())):
+		travel_times.append(notes[i]["travel_time"])
+		print("First 5 travel_times: ", travel_times)
 
 func _snap_angle_to_lane(angle_degrees: float) -> float:
 	var lane_size = 360.0 / LANE_COUNT
@@ -145,7 +158,7 @@ func spawn_due_notes():
 	while next_note_index < notes.size():
 		var note_data = notes[next_note_index]
 		
-		if music_time < note_data["time"] - note_travel_time:
+		if music_time < note_data["time"] - note_data["travel_time"]:
 			break
 
 		spawn_note(note_data)
