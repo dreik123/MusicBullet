@@ -15,6 +15,7 @@ var note_travel_time = 3.5
 var level_ended = false
 var _min_pitch = 0
 var _max_pitch = 127
+var NOTE_SPEED = 6.0
 
 var notes = [
 	{"time": 0.0, "pitches": [64]},
@@ -97,6 +98,7 @@ var notes = [
 func _ready():
 	# Initialize _min_pitch and _max_pitch
 	create_miss_boundary()
+	NOTE_SPEED = get_note_spawn_radius() / 1.2
 
 func create_miss_boundary():
 	var miss_boundary = load("res://miss_boundary.gd").new()
@@ -177,17 +179,22 @@ func spawn_note(note_data):
 	var spawn_angle = _get_lane_angle_for_pitch(lowest_pitch)
 	
 	var outward_direction = Vector2.from_angle(deg_to_rad(spawn_angle))
+	var spawn_distance = NOTE_SPEED * note_data["travel_time"]
+	var spawn_point = player_position + outward_direction * spawn_distance
+
+	note.global_position = spawn_point
+	note.note_speed = NOTE_SPEED
 	var far_outside_point = player_position + outward_direction * 5000.0
 	var viewport_rect = get_viewport_rect()
 	var entry_ratio = get_viewport_entry_ratio(far_outside_point, player_position, viewport_rect)
-	
-	var spawn_point = player_position + outward_direction * get_note_spawn_radius()
+
+
 	if entry_ratio >= 0.0:
 		var boundary_point = far_outside_point.lerp(player_position, entry_ratio)
 		spawn_point = boundary_point + outward_direction * 50.0
-		
+
 	note.global_position = spawn_point
-	note.note_speed = spawn_point.distance_to(player_position) / note_data["travel_time"]
+	note.note_speed = NOTE_SPEED
 
 	note.setup(
 		note_data["time"] - note_data["travel_time"],
