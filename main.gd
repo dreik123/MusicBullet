@@ -187,10 +187,10 @@ func spawn_note(note_data):
 		spawn_point = boundary_point + outward_direction * 50.0
 		
 	note.global_position = spawn_point
-	note.note_speed = spawn_point.distance_to(player_position) / note_travel_time
+	note.note_speed = spawn_point.distance_to(player_position) / note_data["travel_time"]
 
 	note.setup(
-		note_data["time"] - note_travel_time,
+		note_data["time"] - note_data["travel_time"],
 		pitches,
 		player_position,
 		note_data["time"]
