@@ -15,6 +15,9 @@ var note_travel_time = 3.5
 var level_ended = false
 var _min_pitch = 0
 var _max_pitch = 127
+var _lane_visible_length = []
+var _lane_speed = []
+
 var NOTE_SPEED = 6.0
 
 var notes = [
@@ -95,25 +98,27 @@ var notes = [
 	{"time": 32.0, "pitches": [67]},
 ]
 
-func _ready():
-	# Initialize _min_pitch and _max_pitch
-	create_miss_boundary()
-	NOTE_SPEED = get_note_spawn_radius() / 1.2
+func _ray_viewport_exit_distance(origin: Vector2, direction: Vector2) -> float:
+	var rect = get_viewport_rect()
+	var t_max = INF
+	if direction.x > 0:
+		t_max = min(t_max, (rect.end.x - origin.x) / direction.x)
+	elif direction.x < 0:
+		t_max = min(t_max, (rect.position.x - origin.x) / direction.x)
+	if direction.y > 0:
+		t_max = min(t_max, (rect.end.y - origin.y) / direction.y)
+	elif direction.y < 0:
+		t_max = min(t_max, (rect.position.y - origin.y) / direction.y)
+	return t_max
 
-func create_miss_boundary():
-	var miss_boundary = load("res://miss_boundary.gd").new()
-	miss_boundary.name = "MissBoundary"
-	$Player.add_child(miss_boundary)
-	print("Miss boundary node created")
+func _ready():
 	_min_pitch = 127
 	_max_pitch = 0
-
-	# Find min and max pitch in the notes array
 	for note in notes:
 		for pitch in note["pitches"]:
 			_min_pitch = min(_min_pitch, pitch)
 			_max_pitch = max(_max_pitch, pitch)
-	# Compute travel_time for each note entry
+
 	for i in range(notes.size()):
 		if i == 0:
 			notes[i]["travel_time"] = 3.0
@@ -121,11 +126,32 @@ func create_miss_boundary():
 			var gap = notes[i]["time"] - notes[i-1]["time"]
 			notes[i]["travel_time"] = clamp(remap(gap, 0.25, 1.25, 1.2, 3.0), 1.2, 3.0)
 
-	# Print first 5 travel_times
-	var travel_times = []
-	for i in range(min(5, notes.size())):
-		travel_times.append(notes[i]["travel_time"])
-		print("First 5 travel_times: ", travel_times)
+	create_miss_boundary()
+
+	var player_pos_for_lanes = $Player.global_position
+	for lane in range(LANE_COUNT):
+		var lane_angle = -180.0 + lane * (360.0 / LANE_COUNT)
+		var lane_direction = Vector2.from_angle(deg_to_rad(lane_angle))
+		var visible_length = _ray_viewport_exit_distance(player_pos_for_lanes, lane_direction)
+		_lane_visible_length.append(visible_length)
+		_lane_speed.append((visible_length + NOTE_SPAWN_MARGIN) / 1.2)
+
+	music_time = -note_travel_time
+	spawn_due_notes()
+
+func _get_lane_index_for_pitch(pitch):
+	var range_size = max(_max_pitch - _min_pitch, 1)
+	var t = float(pitch - _min_pitch) / float(range_size)
+	return clamp(int(floor(t * LANE_COUNT)), 0, LANE_COUNT - 1)
+
+func create_miss_boundary():
+	var miss_boundary = load("res://miss_boundary.gd").new()
+	miss_boundary.name = "MissBoundary"
+	$Player.add_child(miss_boundary)
+
+func _get_lane_angle_for_pitch(pitch):
+	var lane = _get_lane_index_for_pitch(pitch)
+	return -180.0 + lane * (360.0 / LANE_COUNT)
 
 func _snap_angle_to_lane(angle_degrees: float) -> float:
 	var lane_size = 360.0 / LANE_COUNT
@@ -137,21 +163,10 @@ func _snap_angle_to_lane_rad(angle_rad: float) -> float:
 	var snapped_deg = _snap_angle_to_lane(angle_deg)
 	return deg_to_rad(snapped_deg)
 
-func _get_lane_angle_for_pitch(pitch):
-	var range_size = max(_max_pitch - _min_pitch, 1)
-	var t = float(pitch - _min_pitch) / float(range_size)
-	var lane = clamp(int(floor(t * LANE_COUNT)), 0, LANE_COUNT - 1)
-	return -180.0 + lane * (360.0 / LANE_COUNT)
-	
-	print("Pitch range: ", _min_pitch, "to", _max_pitch)
-	
-	music_time = -note_travel_time
-	spawn_due_notes()
-
 func _process(delta):
 	if level_ended:
 		return
-		
+
 	music_time += delta
 	spawn_due_notes()
 	check_level_end()
@@ -159,13 +174,13 @@ func _process(delta):
 func spawn_due_notes():
 	while next_note_index < notes.size():
 		var note_data = notes[next_note_index]
-		
+
 		if music_time < note_data["time"] - note_data["travel_time"]:
 			break
 
 		spawn_note(note_data)
 		next_note_index += 1
-	
+
 func spawn_note(note_data):
 	var note = note_scene.instantiate()
 	add_child(note)
@@ -176,25 +191,15 @@ func spawn_note(note_data):
 	for p in pitches:
 		if p < lowest_pitch:
 			lowest_pitch = p
-	var spawn_angle = _get_lane_angle_for_pitch(lowest_pitch)
-	
+	var lane = _get_lane_index_for_pitch(lowest_pitch)
+	var spawn_angle = -180.0 + lane * (360.0 / LANE_COUNT)
 	var outward_direction = Vector2.from_angle(deg_to_rad(spawn_angle))
-	var spawn_distance = NOTE_SPEED * note_data["travel_time"]
+	var lane_speed = _lane_speed[lane]
+	var spawn_distance = lane_speed * note_data["travel_time"]
 	var spawn_point = player_position + outward_direction * spawn_distance
 
 	note.global_position = spawn_point
-	note.note_speed = NOTE_SPEED
-	var far_outside_point = player_position + outward_direction * 5000.0
-	var viewport_rect = get_viewport_rect()
-	var entry_ratio = get_viewport_entry_ratio(far_outside_point, player_position, viewport_rect)
-
-
-	if entry_ratio >= 0.0:
-		var boundary_point = far_outside_point.lerp(player_position, entry_ratio)
-		spawn_point = boundary_point + outward_direction * 50.0
-
-	note.global_position = spawn_point
-	note.note_speed = NOTE_SPEED
+	note.note_speed = lane_speed
 
 	note.setup(
 		note_data["time"] - note_data["travel_time"],
@@ -232,28 +237,25 @@ func check_level_end():
 	if notes.is_empty():
 		end_level()
 		return
-		
+
 	var all_spawned = next_note_index >= notes.size()
 	var none_active = not has_active_notes()
-	
+
 	var last_note_time = notes.back()["time"]
 	var time_exceeded = music_time > last_note_time + 1.0
-	
-	print("check_level_end: next_note_index=", next_note_index, " notes.size()=", notes.size(), " all_spawned=", all_spawned, " none_active=", none_active, " active_count=", get_tree().get_nodes_in_group("notes").size())
+
 	if (all_spawned and none_active) or time_exceeded:
 		end_level()
 
 func end_level():
-	print("end_level() called from context, level_ended was: ", level_ended)
+	if level_ended:
+		return
 	level_ended = true
-	print("Level ended! Starting melody playback...")
 	play_recorded_melody()
 
 func play_recorded_melody():
-	# Wait 1.0 second for a clean transition before starting playback
 	await get_tree().create_timer(1.0).timeout
-	print("Melody playback started!")
-	
+
 	var last_time = 0.0
 	for i in range(notes.size()):
 		var chart_note = notes[i]
@@ -261,12 +263,11 @@ func play_recorded_melody():
 		var delay = current_time - last_time
 		if delay > 0.0:
 			await get_tree().create_timer(delay).timeout
-		
-		# Check if this chart note was hit by searching in recorded_notes
+
 		var was_hit = false
 		for recorded in recorded_notes:
-			var orig_time = recorded["time"] - recorded["error"] + note_travel_time
-			if abs(orig_time - current_time) < 0.01:
+			#var orig_time = recorded["time"] - recorded["error"] + note_travel_time
+			if abs(recorded["orig_time"] - current_time) < 0.01:
 				var chart_pitches = chart_note["pitches"]
 				var recorded_pitches = recorded["pitches"]
 				var all_match = true
@@ -277,16 +278,12 @@ func play_recorded_melody():
 				if all_match:
 					was_hit = true
 					break
-		
+
 		if was_hit:
-			print("Melody playback: playing pitches ", chart_note["pitches"], " at chart_time ", current_time)
 			for pitch in chart_note["pitches"]:
 				play_melody_sound(pitch)
-		else:
-			print("Melody playback: silence (missed note) at chart_time ", current_time)
-			
+
 		last_time = current_time
-	print("Melody playback finished!")
 
 func play_melody_sound(pitch: int):
 	var note_audio = $Player/NoteAudio

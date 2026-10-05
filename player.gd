@@ -87,7 +87,8 @@ func handle_note_hit(note, shot_time):
 		"time": shot_time,
 		"error": timing_error,
 		"accuracy": accuracy,
-		"score": note_score
+		"score": note_score,
+		"orig_time": note.arrival_time
 	}
 	
 	get_tree().current_scene.recorded_notes.append(recorded_note)
