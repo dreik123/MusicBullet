@@ -72,11 +72,21 @@ func shoot():
 	if collider.is_in_group("notes"):
 		handle_note_hit(collider, shot_time)
 
+func play_note_sound(pitch: int, duration: float):
+	var player = AudioStreamPlayer.new()
+	player.stream = note_audio.stream
+	player.pitch_scale = pow(2.0, (pitch - 60) / 12.0)
+	add_child(player)
+	player.play()
+	var tween = create_tween()
+	tween.tween_interval(duration)
+	tween.tween_property(player, "volume_db", -40.0, 0.25)
+	tween.tween_callback(player.queue_free)
+
 func handle_note_hit(note, shot_time):
 	# Play each pitch in the note's pitches array
 	for pitch in note.pitches:
-		note_audio.pitch_scale = pow(2.0, (pitch - 60) / 12.0)
-		note_audio.play()
+		play_note_sound(pitch, note.duration)
 
 	var timing_error = shot_time - note.time
 	var absolute_error = abs(timing_error)

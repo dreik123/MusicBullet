@@ -10,6 +10,7 @@ var arrival_time: float
 var visible_duration = 0.0
 var target_position: Vector2
 var direction: Vector2
+var duration = 1.0
 
 @onready var visual = $Polygon2D
 
