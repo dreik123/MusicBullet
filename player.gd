@@ -7,7 +7,8 @@ const RAYCAST_MARGIN = 100.0
 @onready var note_audio = $NoteAudio
 
 func _ready():
-	note_audio.stream = create_placeholder_note_stream()
+	#note_audio.stream = create_placeholder_note_stream()
+	note_audio.stream = load("res://note_piano.wav")
 
 # Temporary placeholder tone; replace with the final note sound sample.
 func create_placeholder_note_stream():
