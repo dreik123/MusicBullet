@@ -101,6 +101,20 @@ var notes = [
 	{"time": 34.0, "pitches": [55, 59], "duration": 2.0},
 ]
 
+func play_reference_melody():
+	var last_time = 0.0
+	for i in range(notes.size()):
+		var chart_note = notes[i]
+		var current_time = chart_note["time"]
+		var delay = current_time - last_time
+		if delay > 0.0:
+			await get_tree().create_timer(delay).timeout
+		for pitch in chart_note["pitches"]:
+			play_melody_sound(pitch, chart_note.get("duration", 1.0))
+		last_time = current_time
+func _unhandled_input(event):
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F1:
+		play_reference_melody()
 func _ray_viewport_exit_distance(origin: Vector2, direction: Vector2) -> float:
 	var rect = get_viewport_rect()
 	var t_max = INF
@@ -190,11 +204,11 @@ func spawn_note(note_data):
 
 	var player_position = $Player.global_position
 	var pitches = note_data["pitches"]
-	var lowest_pitch = pitches[0]
+	var highest_pitch = pitches[0]
 	for p in pitches:
-		if p < lowest_pitch:
-			lowest_pitch = p
-	var lane = _get_lane_index_for_pitch(lowest_pitch)
+		if p > highest_pitch:
+			highest_pitch = p
+	var lane = _get_lane_index_for_pitch(highest_pitch)
 	var spawn_angle = -180.0 + lane * (360.0 / LANE_COUNT)
 	var outward_direction = Vector2.from_angle(deg_to_rad(spawn_angle))
 	var lane_speed = _lane_speed[lane]
