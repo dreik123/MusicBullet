@@ -58,9 +58,11 @@ func shoot():
 	var shot_time = main.music_time
 	var ray_start = muzzle.global_position
 	var ray_direction = Vector2.RIGHT.rotated(global_rotation)
+	var visible_distance = main._ray_viewport_exit_distance(ray_start, ray_direction)
+	var ray_length = min(get_raycast_length(), visible_distance)
 	var query = PhysicsRayQueryParameters2D.create(
 		ray_start,
-		ray_start + ray_direction * get_raycast_length()
+		ray_start + ray_direction * ray_length
 	)
 	query.collide_with_areas = true
 
