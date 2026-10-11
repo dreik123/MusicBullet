@@ -7,28 +7,7 @@ const RAYCAST_MARGIN = 100.0
 @onready var note_audio = $NoteAudio
 
 func _ready():
-	#note_audio.stream = create_placeholder_note_stream()
 	note_audio.stream = load("res://note_piano.wav")
-
-# Temporary placeholder tone; replace with the final note sound sample.
-func create_placeholder_note_stream():
-	var sample_rate = 44100
-	var sample_count = int(sample_rate * 0.15)
-	var audio_data = PackedByteArray()
-	audio_data.resize(sample_count * 2)
-
-	for sample_index in sample_count:
-		var time = float(sample_index) / sample_rate
-		var envelope = 1.0 - float(sample_index) / sample_count
-		var sample = int(sin(TAU * 261.6256 * time) * envelope * 32767.0)
-		audio_data[sample_index * 2] = sample & 0xff
-		audio_data[sample_index * 2 + 1] = (sample >> 8) & 0xff
-
-	var stream = AudioStreamWAV.new()
-	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = sample_rate
-	stream.data = audio_data
-	return stream
 
 func _process(delta):
 	var mouse_pos = get_global_mouse_position()
@@ -90,7 +69,7 @@ func handle_note_hit(note, shot_time):
 	for pitch in note.pitches:
 		play_note_sound(pitch, note.duration)
 
-	var timing_error = shot_time - note.time
+	var timing_error = shot_time - note.get_ideal_time()
 	var absolute_error = abs(timing_error)
 
 	var accuracy = max(0.0, 1.0 - absolute_error / 0.5)
@@ -106,9 +85,5 @@ func handle_note_hit(note, shot_time):
 	
 	get_tree().current_scene.recorded_notes.append(recorded_note)
 	get_tree().current_scene.score += note_score
-	
-	#print("Записано нот:", get_tree().current_scene.recorded_notes)
-	
-	#print("Нота! pitch =", note.pitch, " time =", note.time)
-	#print("Выстрел time =", shot_time, "Ошибка по времени =", timing_error)
+
 	note.queue_free()

@@ -15,10 +15,7 @@ var note_travel_time = 3.5
 var level_ended = false
 var _min_pitch = 0
 var _max_pitch = 127
-var _lane_visible_length = []
 var _lane_speed = []
-
-var NOTE_SPEED = 6.0
 
 var notes = [
 	{"time": 0.0, "pitches": [50, 55, 64], "duration": 2.0},
@@ -110,9 +107,11 @@ func play_reference_melody():
 		for pitch in chart_note["pitches"]:
 			play_melody_sound(pitch, chart_note.get("duration", 1.0))
 		last_time = current_time
+
 func _unhandled_input(event):
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F1:
 		play_reference_melody()
+
 func _ray_viewport_exit_distance(origin: Vector2, direction: Vector2) -> float:
 	var rect = get_viewport_rect()
 	var t_max = INF
@@ -148,7 +147,6 @@ func _ready():
 		var lane_angle = -180.0 + lane * (360.0 / LANE_COUNT)
 		var lane_direction = Vector2.from_angle(deg_to_rad(lane_angle))
 		var visible_length = _ray_viewport_exit_distance(player_pos_for_lanes, lane_direction)
-		_lane_visible_length.append(visible_length)
 		_lane_speed.append((visible_length + NOTE_SPAWN_MARGIN) / 1.2)
 
 	music_time = -note_travel_time
@@ -163,10 +161,6 @@ func create_miss_boundary():
 	var miss_boundary = load("res://miss_boundary.gd").new()
 	miss_boundary.name = "MissBoundary"
 	$Player.add_child(miss_boundary)
-
-func _get_lane_angle_for_pitch(pitch):
-	var lane = _get_lane_index_for_pitch(pitch)
-	return -180.0 + lane * (360.0 / LANE_COUNT)
 
 func _snap_angle_to_lane(angle_degrees: float) -> float:
 	var lane_size = 360.0 / LANE_COUNT
@@ -282,7 +276,6 @@ func play_recorded_melody():
 
 		var was_hit = false
 		for recorded in recorded_notes:
-			#var orig_time = recorded["time"] - recorded["error"] + note_travel_time
 			if abs(recorded["orig_time"] - current_time) < 0.01:
 				var chart_pitches = chart_note["pitches"]
 				var recorded_pitches = recorded["pitches"]

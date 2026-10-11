@@ -14,9 +14,6 @@ var duration = 1.0
 
 @onready var visual = $Polygon2D
 
-func _ready():
-	print("Note created, groups: ", get_groups())
-
 func setup(note_time: float, note_pitches: Array, note_target_position: Vector2, note_arrival_time: float):
 	time = note_time
 	pitches = note_pitches
@@ -55,3 +52,8 @@ func _process(delta):
 		return
 
 	global_position += direction * note_speed * delta
+
+func get_ideal_time() -> float:
+	var player = get_tree().current_scene.get_node("Player")
+	var ring_radius = player.get_node("MissBoundary").MISS_BOUNDARY_RADIUS
+	return arrival_time - ring_radius / note_speed - visible_duration / 2.0
