@@ -8,10 +8,31 @@ const NOTE_SPAWN_MARGIN = 100.0
 const LANE_COUNT = 8
 
 # UI texts (change here to rename or translate)
-const TXT_TITLE = "Music Bullet"
+const TXT_TITLE = "MusicBullet"
 const TXT_START = "Start"
-const TXT_QUIT = "Exit"
+const TXT_QUIT = "Quit"
 const TXT_SCORE = "Score: %d"
+const TXT_RESULTS_TITLE = "Level complete"
+const TXT_RESULTS_SCORE = "Score: %d"
+const TXT_RESULTS_HITS = "Hits: %d / %d"
+const TXT_PLAY_AGAIN = "Play again"
+const TXT_MENU = "Menu"
+
+# Score of one perfect hit (must match the maximum score given by player.gd).
+const MAX_SCORE_PER_NOTE = 100.0
+
+# Rank thresholds: minimum percent of the maximum possible score, best rank first.
+const RANKS = [
+	{"name": "SSS", "min_percent": 95.0},
+	{"name": "SS", "min_percent": 90.0},
+	{"name": "S", "min_percent": 80.0},
+	{"name": "A", "min_percent": 70.0},
+	{"name": "B", "min_percent": 60.0},
+	{"name": "C", "min_percent": 50.0},
+	{"name": "D", "min_percent": 40.0},
+	{"name": "E", "min_percent": 25.0},
+	{"name": "F", "min_percent": 0.0},
+]
 
 var music_time = 0.0
 var next_note_index = 0
@@ -24,6 +45,12 @@ var _ui: CanvasLayer
 var _menu: Control
 var _start_button: Button
 var _score_label: Label
+var _results: Control
+var _results_rank_label: Label
+var _results_score_label: Label
+var _results_hits_label: Label
+var _play_again_button: Button
+var _playback_id = 0
 var _min_pitch = 0
 var _max_pitch = 127
 var _lane_speed = []
@@ -168,6 +195,8 @@ func prepare_chart():
 
 func show_menu():
 	playing = false
+	_playback_id += 1
+	_results.visible = false
 	_clear_notes()
 	$Player.visible = false
 	_score_label.visible = false
@@ -175,6 +204,8 @@ func show_menu():
 	_start_button.grab_focus()
 
 func start_game():
+	_playback_id += 1
+	_results.visible = false
 	_clear_notes()
 	recorded_notes = []
 	score = 0
@@ -197,6 +228,7 @@ func _build_ui():
 	add_child(_ui)
 	_build_menu()
 	_build_hud()
+	_build_results()
 
 func _build_menu():
 	_menu = CenterContainer.new()
@@ -234,6 +266,69 @@ func _build_hud():
 	_ui.add_child(_score_label)
 	_score_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
 	_score_label.visible = false
+
+func _build_results():
+	_results = CenterContainer.new()
+	_ui.add_child(_results)
+	_results.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_results.visible = false
+
+	var box = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 12)
+	_results.add_child(box)
+
+	var title = Label.new()
+	title.text = TXT_RESULTS_TITLE
+	title.add_theme_font_size_override("font_size", 40)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+
+	_results_rank_label = Label.new()
+	_results_rank_label.add_theme_font_size_override("font_size", 200)
+	_results_rank_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_results_rank_label)
+
+	_results_score_label = Label.new()
+	_results_score_label.add_theme_font_size_override("font_size", 36)
+	_results_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_results_score_label)
+
+	_results_hits_label = Label.new()
+	_results_hits_label.add_theme_font_size_override("font_size", 28)
+	_results_hits_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_results_hits_label)
+
+	_play_again_button = Button.new()
+	_play_again_button.text = TXT_PLAY_AGAIN
+	_play_again_button.custom_minimum_size = Vector2(260, 60)
+	_play_again_button.pressed.connect(_on_start_pressed)
+	box.add_child(_play_again_button)
+
+	var menu_button = Button.new()
+	menu_button.text = TXT_MENU
+	menu_button.custom_minimum_size = Vector2(260, 60)
+	menu_button.pressed.connect(show_menu)
+	box.add_child(menu_button)
+
+func _show_results():
+	_clear_notes()
+	$Player.visible = false
+	_score_label.visible = false
+	var max_score = notes.size() * MAX_SCORE_PER_NOTE
+	var percent = 0.0
+	if max_score > 0.0:
+		percent = 100.0 * score / max_score
+	_results_rank_label.text = get_rank(percent)
+	_results_score_label.text = TXT_RESULTS_SCORE % int(score)
+	_results_hits_label.text = TXT_RESULTS_HITS % [recorded_notes.size(), notes.size()]
+	_results.visible = true
+	_play_again_button.grab_focus()
+
+func get_rank(percent):
+	for rank in RANKS:
+		if percent >= rank["min_percent"]:
+			return rank["name"]
+	return RANKS[RANKS.size() - 1]["name"]
 
 # Called by the Player after every hit.
 func add_score(points):
@@ -358,11 +453,15 @@ func end_level():
 	if level_ended:
 		return
 	level_ended = true
-	await play_recorded_melody()
-	show_menu()
+	_show_results()
+	play_recorded_melody()
 
 func play_recorded_melody():
+	_playback_id += 1
+	var my_id = _playback_id
 	await get_tree().create_timer(1.0).timeout
+	if my_id != _playback_id:
+		return
 
 	var last_time = 0.0
 	for i in range(notes.size()):
@@ -371,6 +470,8 @@ func play_recorded_melody():
 		var delay = current_time - last_time
 		if delay > 0.0:
 			await get_tree().create_timer(delay).timeout
+			if my_id != _playback_id:
+				return
 
 		var was_hit = false
 		for recorded in recorded_notes:

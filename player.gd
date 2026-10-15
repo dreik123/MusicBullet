@@ -70,7 +70,7 @@ func handle_note_hit(note, shot_time):
 	for pitch in note.pitches:
 		play_note_sound(pitch, note.duration)
 
-	var timing_error = shot_time - note.time
+	var timing_error = shot_time - note.get_ideal_time()
 	var absolute_error = abs(timing_error)
 
 	var accuracy = max(0.0, 1.0 - absolute_error / 0.5)
@@ -85,6 +85,6 @@ func handle_note_hit(note, shot_time):
 	}
 	
 	get_tree().current_scene.recorded_notes.append(recorded_note)
-	get_tree().current_scene.score += note_score
+	get_tree().current_scene.add_score(note_score)
 
 	note.queue_free()
