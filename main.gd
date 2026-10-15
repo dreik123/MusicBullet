@@ -7,12 +7,23 @@ const NOTE_SPAWN_MARGIN = 100.0
 
 const LANE_COUNT = 8
 
+# UI texts (change here to rename or translate)
+const TXT_TITLE = "Music Bullet"
+const TXT_START = "Start"
+const TXT_QUIT = "Exit"
+const TXT_SCORE = "Score: %d"
+
 var music_time = 0.0
 var next_note_index = 0
 var recorded_notes = []
 var score = 0
 var note_travel_time = 3.5
 var level_ended = false
+var playing = false
+var _ui: CanvasLayer
+var _menu: Control
+var _start_button: Button
+var _score_label: Label
 var _min_pitch = 0
 var _max_pitch = 127
 var _lane_speed = []
@@ -126,6 +137,13 @@ func _ray_viewport_exit_distance(origin: Vector2, direction: Vector2) -> float:
 	return t_max
 
 func _ready():
+	prepare_chart()
+	create_miss_boundary()
+	_build_ui()
+	show_menu()
+
+# Computes everything that depends only on the chart (and the screen size).
+func prepare_chart():
 	_min_pitch = 127
 	_max_pitch = 0
 	for note in notes:
@@ -140,8 +158,7 @@ func _ready():
 			var gap = notes[i]["time"] - notes[i-1]["time"]
 			notes[i]["travel_time"] = clamp(remap(gap, 0.25, 1.25, 1.2, 3.0), 1.2, 3.0)
 
-	create_miss_boundary()
-
+	_lane_speed.clear()
 	var player_pos_for_lanes = $Player.global_position
 	for lane in range(LANE_COUNT):
 		var lane_angle = -180.0 + lane * (360.0 / LANE_COUNT)
@@ -149,8 +166,88 @@ func _ready():
 		var visible_length = _ray_viewport_exit_distance(player_pos_for_lanes, lane_direction)
 		_lane_speed.append((visible_length + NOTE_SPAWN_MARGIN) / 1.2)
 
+func show_menu():
+	playing = false
+	_clear_notes()
+	$Player.visible = false
+	_score_label.visible = false
+	_menu.visible = true
+	_start_button.grab_focus()
+
+func start_game():
+	_clear_notes()
+	recorded_notes = []
+	score = 0
+	_update_score_label()
+	_score_label.visible = true
+	next_note_index = 0
+	level_ended = false
 	music_time = -note_travel_time
-	spawn_due_notes()
+	_menu.visible = false
+	$Player.visible = true
+	playing = true
+
+func _clear_notes():
+	for note in get_tree().get_nodes_in_group("notes"):
+		note.queue_free()
+
+func _build_ui():
+	_ui = CanvasLayer.new()
+	_ui.layer = 10
+	add_child(_ui)
+	_build_menu()
+	_build_hud()
+
+func _build_menu():
+	_menu = CenterContainer.new()
+	_ui.add_child(_menu)
+	_menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var box = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 16)
+	_menu.add_child(box)
+
+	var title = Label.new()
+	title.text = TXT_TITLE
+	title.add_theme_font_size_override("font_size", 72)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+
+	_start_button = Button.new()
+	_start_button.text = TXT_START
+	_start_button.custom_minimum_size = Vector2(260, 60)
+	_start_button.pressed.connect(_on_start_pressed)
+	box.add_child(_start_button)
+
+	var quit_button = Button.new()
+	quit_button.text = TXT_QUIT
+	quit_button.custom_minimum_size = Vector2(260, 60)
+	quit_button.pressed.connect(_on_quit_pressed)
+	box.add_child(quit_button)
+
+func _build_hud():
+	_score_label = Label.new()
+	_score_label.add_theme_font_size_override("font_size", 40)
+	_score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_score_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_score_label.custom_minimum_size = Vector2(0, 64)
+	_ui.add_child(_score_label)
+	_score_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_WIDE)
+	_score_label.visible = false
+
+# Called by the Player after every hit.
+func add_score(points):
+	score += points
+	_update_score_label()
+
+func _update_score_label():
+	_score_label.text = TXT_SCORE % int(score)
+
+func _on_start_pressed():
+	start_game()
+
+func _on_quit_pressed():
+	get_tree().quit()
 
 func _get_lane_index_for_pitch(pitch):
 	var range_size = max(_max_pitch - _min_pitch, 1)
@@ -173,7 +270,7 @@ func _snap_angle_to_lane_rad(angle_rad: float) -> float:
 	return deg_to_rad(snapped_deg)
 
 func _process(delta):
-	if level_ended:
+	if not playing or level_ended:
 		return
 
 	music_time += delta
@@ -261,7 +358,8 @@ func end_level():
 	if level_ended:
 		return
 	level_ended = true
-	play_recorded_melody()
+	await play_recorded_melody()
+	show_menu()
 
 func play_recorded_melody():
 	await get_tree().create_timer(1.0).timeout

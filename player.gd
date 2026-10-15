@@ -28,7 +28,8 @@ func update_aim_line():
 	
 func _input(event):
 	if event.is_action_pressed("shoot"):
-		if get_tree().current_scene.get("level_ended"):
+		var main = get_tree().current_scene
+		if not main.get("playing") or main.get("level_ended"):
 			return
 		shoot()
 		
@@ -69,7 +70,7 @@ func handle_note_hit(note, shot_time):
 	for pitch in note.pitches:
 		play_note_sound(pitch, note.duration)
 
-	var timing_error = shot_time - note.get_ideal_time()
+	var timing_error = shot_time - note.time
 	var absolute_error = abs(timing_error)
 
 	var accuracy = max(0.0, 1.0 - absolute_error / 0.5)
