@@ -2,6 +2,8 @@ extends Node2D
 
 @export var note_scene: PackedScene
 
+const ChartImporter = preload("res://chart_importer.gd")
+
 
 const NOTE_SPAWN_MARGIN = 100.0
 
@@ -17,6 +19,13 @@ const TXT_RESULTS_SCORE = "Score: %d"
 const TXT_RESULTS_HITS = "Hits: %d / %d"
 const TXT_PLAY_AGAIN = "Play again"
 const TXT_MENU = "Menu"
+const TXT_LOAD_MELODY = "Load melody"
+const TXT_BUILT_IN_MELODY = "Built-in melody"
+const TXT_MELODY_LABEL = "Melody: %s"
+const TXT_MELODY_INFO = "%d notes, %d s"
+const TXT_BUILT_IN_TITLE = "FirstLevel (built-in)"
+const TXT_DIALOG_TITLE = "Choose a MusicXML file"
+const TXT_DIALOG_FILTER = "*.mxl, *.musicxml, *.xml ; MusicXML files"
 
 # Score of one perfect hit (must match the maximum score given by player.gd).
 const MAX_SCORE_PER_NOTE = 100.0
@@ -51,6 +60,13 @@ var _results_score_label: Label
 var _results_hits_label: Label
 var _play_again_button: Button
 var _playback_id = 0
+var _default_notes = []
+var _custom_melody = false
+var _melody_title = ""
+var _melody_label: Label
+var _message_label: Label
+var _built_in_button: Button
+var _file_dialog: FileDialog
 var _min_pitch = 0
 var _max_pitch = 127
 var _lane_speed = []
@@ -164,9 +180,11 @@ func _ray_viewport_exit_distance(origin: Vector2, direction: Vector2) -> float:
 	return t_max
 
 func _ready():
+	_default_notes = notes.duplicate(true)
 	prepare_chart()
 	create_miss_boundary()
 	_build_ui()
+	get_window().files_dropped.connect(_on_files_dropped)
 	show_menu()
 
 # Computes everything that depends only on the chart (and the screen size).
@@ -229,6 +247,7 @@ func _build_ui():
 	_build_menu()
 	_build_hud()
 	_build_results()
+	_build_file_dialog()
 
 func _build_menu():
 	_menu = CenterContainer.new()
@@ -245,17 +264,98 @@ func _build_menu():
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 
+	_melody_label = Label.new()
+	_melody_label.add_theme_font_size_override("font_size", 24)
+	_melody_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(_melody_label)
+
 	_start_button = Button.new()
 	_start_button.text = TXT_START
 	_start_button.custom_minimum_size = Vector2(260, 60)
 	_start_button.pressed.connect(_on_start_pressed)
 	box.add_child(_start_button)
 
+	var load_button = Button.new()
+	load_button.text = TXT_LOAD_MELODY
+	load_button.custom_minimum_size = Vector2(260, 60)
+	load_button.pressed.connect(_on_load_pressed)
+	box.add_child(load_button)
+
+	_built_in_button = Button.new()
+	_built_in_button.text = TXT_BUILT_IN_MELODY
+	_built_in_button.custom_minimum_size = Vector2(260, 60)
+	_built_in_button.pressed.connect(_use_built_in_melody)
+	box.add_child(_built_in_button)
+
 	var quit_button = Button.new()
 	quit_button.text = TXT_QUIT
 	quit_button.custom_minimum_size = Vector2(260, 60)
 	quit_button.pressed.connect(_on_quit_pressed)
 	box.add_child(quit_button)
+
+	_message_label = Label.new()
+	_message_label.add_theme_font_size_override("font_size", 20)
+	_message_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.45))
+	_message_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_message_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_message_label.custom_minimum_size = Vector2(520, 0)
+	box.add_child(_message_label)
+
+	_update_melody_ui()
+
+func _build_file_dialog():
+	_file_dialog = FileDialog.new()
+	_file_dialog.title = TXT_DIALOG_TITLE
+	_file_dialog.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	_file_dialog.access = FileDialog.ACCESS_FILESYSTEM
+	_file_dialog.filters = PackedStringArray([TXT_DIALOG_FILTER])
+	_file_dialog.size = Vector2i(900, 550)
+	_file_dialog.file_selected.connect(_on_melody_file_selected)
+	add_child(_file_dialog)
+
+func _on_load_pressed():
+	_file_dialog.popup_centered()
+
+func _on_melody_file_selected(path):
+	_load_melody(path)
+
+# Dropping a file on the window loads it too (only while the menu is open).
+func _on_files_dropped(files):
+	if _menu.visible and files.size() > 0:
+		_load_melody(files[0])
+
+func _load_melody(path):
+	var result = ChartImporter.import_file(path)
+	if not result["ok"]:
+		_set_message(result["error"])
+		return
+	notes = result["notes"]
+	_melody_title = result["title"]
+	_custom_melody = true
+	prepare_chart()
+	_update_melody_ui()
+	_set_message("")
+
+func _use_built_in_melody():
+	notes = _default_notes.duplicate(true)
+	_custom_melody = false
+	prepare_chart()
+	_update_melody_ui()
+	_set_message("")
+
+func _update_melody_ui():
+	var title = TXT_BUILT_IN_TITLE
+	if _custom_melody:
+		title = _melody_title
+	var last_note = notes.back()
+	var length = last_note["time"] + last_note["duration"]
+	var line_one = TXT_MELODY_LABEL % title
+	var line_two = TXT_MELODY_INFO % [notes.size(), int(length)]
+	_melody_label.text = line_one + "\n" + line_two
+	_built_in_button.visible = _custom_melody
+
+func _set_message(text):
+	_message_label.text = text
 
 func _build_hud():
 	_score_label = Label.new()
