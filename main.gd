@@ -9,6 +9,12 @@ const NOTE_SPAWN_MARGIN = 100.0
 
 const LANE_COUNT = 8
 
+# Lane limiting: notes that arrive within LANE_WINDOW seconds of each other may use at most
+# MAX_LANES_IN_WINDOW different lanes. Only the direction of a note is changed, never its
+# time or its pitch.
+const LANE_WINDOW = 1.0
+const MAX_LANES_IN_WINDOW = 2
+
 # UI texts (change here to rename or translate)
 const TXT_TITLE = "MusicBullet"
 const TXT_START = "Start"
@@ -195,6 +201,8 @@ func prepare_chart():
 		for pitch in note["pitches"]:
 			_min_pitch = min(_min_pitch, pitch)
 			_max_pitch = max(_max_pitch, pitch)
+
+	_assign_lanes()
 
 	for i in range(notes.size()):
 		if i == 0:
@@ -449,6 +457,51 @@ func _get_lane_index_for_pitch(pitch):
 	var t = float(pitch - _min_pitch) / float(range_size)
 	return clamp(int(floor(t * LANE_COUNT)), 0, LANE_COUNT - 1)
 
+# Gives every chart entry a lane. The natural lane comes from the highest pitch of the entry.
+# If that would put more than MAX_LANES_IN_WINDOW different lanes inside LANE_WINDOW seconds,
+# the entry is moved to the nearest lane that is already in use.
+func _assign_lanes():
+	var recent = []
+	for note in notes:
+		var natural = _get_lane_index_for_pitch(_highest_pitch(note["pitches"]))
+
+		while not recent.is_empty() and note["time"] - recent[0]["time"] > LANE_WINDOW:
+			recent.pop_front()
+
+		# Lanes used inside the window, the most recently used lane first.
+		var lanes_used = []
+		for i in range(recent.size() - 1, -1, -1):
+			if not lanes_used.has(recent[i]["lane"]):
+				lanes_used.append(recent[i]["lane"])
+
+		var lane = natural
+		if not lanes_used.has(natural) and lanes_used.size() >= MAX_LANES_IN_WINDOW:
+			lane = _closest_lane(natural, lanes_used)
+
+		note["lane"] = lane
+		recent.append(note)
+
+func _closest_lane(natural, lanes_used):
+	var best = lanes_used[0]
+	var best_distance = _circular_lane_distance(natural, best)
+	for lane in lanes_used:
+		var distance = _circular_lane_distance(natural, lane)
+		if distance < best_distance:
+			best = lane
+			best_distance = distance
+	return best
+
+func _circular_lane_distance(a, b):
+	var distance = abs(a - b)
+	return min(distance, LANE_COUNT - distance)
+
+func _highest_pitch(pitches):
+	var highest = pitches[0]
+	for p in pitches:
+		if p > highest:
+			highest = p
+	return highest
+
 func create_miss_boundary():
 	var miss_boundary = load("res://miss_boundary.gd").new()
 	miss_boundary.name = "MissBoundary"
@@ -488,11 +541,7 @@ func spawn_note(note_data):
 
 	var player_position = $Player.global_position
 	var pitches = note_data["pitches"]
-	var highest_pitch = pitches[0]
-	for p in pitches:
-		if p > highest_pitch:
-			highest_pitch = p
-	var lane = _get_lane_index_for_pitch(highest_pitch)
+	var lane = note_data["lane"]
 	var spawn_angle = -180.0 + lane * (360.0 / LANE_COUNT)
 	var outward_direction = Vector2.from_angle(deg_to_rad(spawn_angle))
 	var lane_speed = _lane_speed[lane]
