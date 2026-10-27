@@ -15,6 +15,17 @@ const LANE_COUNT = 8
 const LANE_WINDOW = 1.0
 const MAX_LANES_IN_WINDOW = 2
 
+# Fast notes are merged into one target (a "segment"). Consecutive chart entries that are
+# closer than MERGE_GAP seconds become one segment, but a segment never spans more than
+# MAX_SEGMENT_LENGTH seconds. Hitting a segment plays all of its notes with their original rhythm.
+const MERGE_GAP = 0.15
+const MAX_SEGMENT_LENGTH = 1.5
+
+# At most MAX_OBJECTS_PER_LANE targets may be on one lane within LANE_OBJECT_WINDOW seconds
+# (about the time a target is visible). Extra targets are merged into the previous target on that lane.
+const MAX_OBJECTS_PER_LANE = 4
+const LANE_OBJECT_WINDOW = 1.0
+
 # UI texts (change here to rename or translate)
 const TXT_TITLE = "MusicBullet"
 const TXT_START = "Start"
@@ -28,7 +39,7 @@ const TXT_MENU = "Menu"
 const TXT_LOAD_MELODY = "Load melody"
 const TXT_BUILT_IN_MELODY = "Built-in melody"
 const TXT_MELODY_LABEL = "Melody: %s"
-const TXT_MELODY_INFO = "%d notes, %d s"
+const TXT_MELODY_INFO = "%d targets, %d s"
 const TXT_BUILT_IN_TITLE = "FirstLevel (built-in)"
 const TXT_DIALOG_TITLE = "Choose a MusicXML file"
 const TXT_DIALOG_FILTER = "*.mxl, *.musicxml, *.xml ; MusicXML files"
@@ -157,16 +168,7 @@ var notes = [
 ]
 
 func play_reference_melody():
-	var last_time = 0.0
-	for i in range(notes.size()):
-		var chart_note = notes[i]
-		var current_time = chart_note["time"]
-		var delay = current_time - last_time
-		if delay > 0.0:
-			await get_tree().create_timer(delay).timeout
-		for pitch in chart_note["pitches"]:
-			play_melody_sound(pitch, chart_note.get("duration", 1.0))
-		last_time = current_time
+	_play_events(_collect_playback_events(false), -1)
 
 func _unhandled_input(event):
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F1:
@@ -195,6 +197,8 @@ func _ready():
 
 # Computes everything that depends only on the chart (and the screen size).
 func prepare_chart():
+	_merge_fast_notes()
+
 	_min_pitch = 127
 	_max_pitch = 0
 	for note in notes:
@@ -203,6 +207,7 @@ func prepare_chart():
 			_max_pitch = max(_max_pitch, pitch)
 
 	_assign_lanes()
+	_limit_lane_load()
 
 	for i in range(notes.size()):
 		if i == 0:
@@ -457,6 +462,89 @@ func _get_lane_index_for_pitch(pitch):
 	var t = float(pitch - _min_pitch) / float(range_size)
 	return clamp(int(floor(t * LANE_COUNT)), 0, LANE_COUNT - 1)
 
+# --- Segments: fast notes merged into one target ---
+# A chart entry may carry "steps": the notes that play when the target is hit, each with its
+# own offset (seconds after the start of the target), pitches and duration.
+
+func _steps_of(note):
+	if note.has("steps"):
+		return note["steps"]
+	return [{"offset": 0.0, "pitches": note["pitches"].duplicate(), "duration": note.get("duration", 0.5)}]
+
+func _last_offset(note):
+	var steps = _steps_of(note)
+	return steps[steps.size() - 1]["offset"]
+
+func _new_segment(note):
+	var steps = []
+	for step in _steps_of(note):
+		steps.append({"offset": step["offset"], "pitches": step["pitches"].duplicate(), "duration": step["duration"]})
+	return {"time": note["time"], "pitches": note["pitches"].duplicate(), "steps": steps, "duration": note.get("duration", 0.5)}
+
+func _append_to_segment(segment, note):
+	var offset = note["time"] - segment["time"]
+	for step in _steps_of(note):
+		segment["steps"].append({"offset": offset + step["offset"], "pitches": step["pitches"].duplicate(), "duration": step["duration"]})
+	for pitch in note["pitches"]:
+		if not segment["pitches"].has(pitch):
+			segment["pitches"].append(pitch)
+
+func _finish_segment(segment):
+	segment["pitches"].sort()
+	var total = 0.0
+	for step in segment["steps"]:
+		total = max(total, step["offset"] + step["duration"])
+	segment["duration"] = total
+
+# Merges runs of fast notes (gap <= MERGE_GAP) into segments. Only the way the music is split into
+# targets changes: every note keeps its pitch and its exact time.
+func _merge_fast_notes():
+	var merged = []
+	var current = null
+	var current_last = 0.0  # absolute time of the last note inside the current segment
+	for note in notes:
+		var can_join = false
+		if current != null:
+			var gap = note["time"] - current_last
+			var span = note["time"] + _last_offset(note) - current["time"]
+			can_join = gap <= MERGE_GAP and span <= MAX_SEGMENT_LENGTH
+		if can_join:
+			_append_to_segment(current, note)
+		else:
+			current = _new_segment(note)
+			merged.append(current)
+		current_last = current["time"] + _last_offset(current)
+	for segment in merged:
+		_finish_segment(segment)
+	notes = merged
+
+# Keeps at most MAX_OBJECTS_PER_LANE targets on one lane inside LANE_OBJECT_WINDOW seconds.
+# A target that would exceed the limit is merged into the previous target of the same lane.
+func _limit_lane_load():
+	var kept_by_lane = {}
+	var result = []
+	for note in notes:
+		var lane = note["lane"]
+		if not kept_by_lane.has(lane):
+			kept_by_lane[lane] = []
+		var kept = kept_by_lane[lane]
+
+		var in_window = 0
+		for i in range(kept.size() - 1, -1, -1):
+			if note["time"] - kept[i]["time"] > LANE_OBJECT_WINDOW:
+				break
+			in_window += 1
+
+		if in_window >= MAX_OBJECTS_PER_LANE:
+			_append_to_segment(kept[kept.size() - 1], note)
+		else:
+			kept.append(note)
+			result.append(note)
+
+	for note in result:
+		_finish_segment(note)
+	notes = result
+
 # Gives every chart entry a lane. The natural lane comes from the highest pitch of the entry.
 # If that would put more than MAX_LANES_IN_WINDOW different lanes inside LANE_WINDOW seconds,
 # the entry is moved to the nearest lane that is already in use.
@@ -558,6 +646,8 @@ func spawn_note(note_data):
 		note_data["time"]
 	)
 	note.duration = note_data.get("duration", 1.0)
+	note.steps = note_data["steps"]
+	note.set_segment(note_data["steps"].back()["offset"])
 
 func get_note_spawn_radius():
 	var viewport_rect = get_viewport_rect()
@@ -611,36 +701,47 @@ func play_recorded_melody():
 	await get_tree().create_timer(1.0).timeout
 	if my_id != _playback_id:
 		return
+	await _play_events(_collect_playback_events(true), my_id)
 
+# Every note to play, sorted by time. With only_hit, only targets the player hit are included.
+func _collect_playback_events(only_hit):
+	var events = []
+	for chart_note in notes:
+		if only_hit and not _was_hit(chart_note):
+			continue
+		for step in chart_note["steps"]:
+			events.append({"time": chart_note["time"] + step["offset"], "pitches": step["pitches"], "duration": step["duration"]})
+	events.sort_custom(_event_earlier)
+	return events
+
+func _event_earlier(a, b):
+	return a["time"] < b["time"]
+
+func _was_hit(chart_note):
+	for recorded in recorded_notes:
+		if abs(recorded["orig_time"] - chart_note["time"]) < 0.01:
+			var all_match = true
+			for pitch in chart_note["pitches"]:
+				if not recorded["pitches"].has(pitch):
+					all_match = false
+					break
+			if all_match:
+				return true
+	return false
+
+# Plays the events one after another. A playback that was cancelled (my_id changed) stops.
+# Use my_id = -1 for a playback that cannot be cancelled.
+func _play_events(events, my_id):
 	var last_time = 0.0
-	for i in range(notes.size()):
-		var chart_note = notes[i]
-		var current_time = chart_note["time"]
-		var delay = current_time - last_time
+	for event in events:
+		var delay = event["time"] - last_time
 		if delay > 0.0:
 			await get_tree().create_timer(delay).timeout
-			if my_id != _playback_id:
+			if my_id >= 0 and my_id != _playback_id:
 				return
-
-		var was_hit = false
-		for recorded in recorded_notes:
-			if abs(recorded["orig_time"] - current_time) < 0.01:
-				var chart_pitches = chart_note["pitches"]
-				var recorded_pitches = recorded["pitches"]
-				var all_match = true
-				for pitch in chart_pitches:
-					if not recorded_pitches.has(pitch):
-						all_match = false
-						break
-				if all_match:
-					was_hit = true
-					break
-
-		if was_hit:
-			for pitch in chart_note["pitches"]:
-				play_melody_sound(pitch, chart_note.get("duration", 1.0))
-
-		last_time = current_time
+		for pitch in event["pitches"]:
+			play_melody_sound(pitch, event["duration"])
+		last_time = event["time"]
 
 func play_melody_sound(pitch: int, duration: float):
 	$Player.play_note_sound(pitch, duration)

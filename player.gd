@@ -93,14 +93,24 @@ func play_note_sound(pitch: int, duration: float):
 	tween.tween_property(player, "volume_db", -40.0, 0.25)
 	tween.tween_callback(player.queue_free)
 
+# Plays the steps of a target one after another. The first step (offset 0) sounds immediately.
+func play_steps(steps):
+	var played_until = 0.0
+	for step in steps:
+		var wait = step["offset"] - played_until
+		if wait > 0.0:
+			await get_tree().create_timer(wait).timeout
+			played_until = step["offset"]
+		for pitch in step["pitches"]:
+			play_note_sound(pitch, step["duration"])
+
 func handle_note_hit(note, shot_time, max_accuracy = 1.0):
 	# A note that was already hit this frame must not be scored twice.
 	if note.is_queued_for_deletion():
 		return
 
-	# Play each pitch in the note's pitches array
-	for pitch in note.pitches:
-		play_note_sound(pitch, note.duration)
+	# A segment plays all of its notes with their original rhythm.
+	play_steps(note.steps)
 
 	var timing_error = shot_time - note.get_ideal_time()
 	var absolute_error = abs(timing_error)
