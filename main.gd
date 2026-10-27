@@ -9,22 +9,26 @@ const NOTE_SPAWN_MARGIN = 100.0
 
 const LANE_COUNT = 8
 
-# Lane limiting: notes that arrive within LANE_WINDOW seconds of each other may use at most
-# MAX_LANES_IN_WINDOW different lanes. Only the direction of a note is changed, never its
-# time or its pitch.
-const LANE_WINDOW = 1.0
-const MAX_LANES_IN_WINDOW = 2
-
 # Fast notes are merged into one target (a "segment"). Consecutive chart entries that are
 # closer than MERGE_GAP seconds become one segment, but a segment never spans more than
 # MAX_SEGMENT_LENGTH seconds. Hitting a segment plays all of its notes with their original rhythm.
-const MERGE_GAP = 0.15
+const MERGE_GAP = 0.2
 const MAX_SEGMENT_LENGTH = 1.5
 
-# At most MAX_OBJECTS_PER_LANE targets may be on one lane within LANE_OBJECT_WINDOW seconds
-# (about the time a target is visible). Extra targets are merged into the previous target on that lane.
-const MAX_OBJECTS_PER_LANE = 4
-const LANE_OBJECT_WINDOW = 1.0
+# At most MAX_VISIBLE_TARGETS targets are on the screen at the same time.
+const MAX_VISIBLE_TARGETS = 4
+
+# The direction (lane) of a target does NOT depend on its pitch. Lanes are spread out so that:
+# - one lane has at most MAX_TARGETS_PER_LANE targets within LANE_SPREAD_WINDOW seconds;
+# - at most MAX_LANES_IN_WINDOW different lanes are used within LANE_WINDOW seconds
+#   (set MAX_LANES_IN_WINDOW to LANE_COUNT to switch this rule off).
+const LANE_SPREAD_WINDOW = 5.0
+const MAX_TARGETS_PER_LANE = 3
+const LANE_WINDOW = 1.0
+const MAX_LANES_IN_WINDOW = 2
+
+# When a target cannot be shown without breaking one of these rules, it is merged into the
+# previous target. The music itself (the time and pitch of every note) never changes.
 
 # UI texts (change here to rename or translate)
 const TXT_TITLE = "MusicBullet"
@@ -84,8 +88,7 @@ var _melody_label: Label
 var _message_label: Label
 var _built_in_button: Button
 var _file_dialog: FileDialog
-var _min_pitch = 0
-var _max_pitch = 127
+var _visible_time = 1.0  # the longest time a target stays on the screen, in seconds
 var _lane_speed = []
 
 var notes = [
@@ -197,17 +200,10 @@ func _ready():
 
 # Computes everything that depends only on the chart (and the screen size).
 func prepare_chart():
+	_compute_lane_geometry()
 	_merge_fast_notes()
-
-	_min_pitch = 127
-	_max_pitch = 0
-	for note in notes:
-		for pitch in note["pitches"]:
-			_min_pitch = min(_min_pitch, pitch)
-			_max_pitch = max(_max_pitch, pitch)
-
+	_limit_visible_targets()
 	_assign_lanes()
-	_limit_lane_load()
 
 	for i in range(notes.size()):
 		if i == 0:
@@ -216,13 +212,18 @@ func prepare_chart():
 			var gap = notes[i]["time"] - notes[i-1]["time"]
 			notes[i]["travel_time"] = clamp(remap(gap, 0.25, 1.25, 1.2, 3.0), 1.2, 3.0)
 
+# Speed of every lane and the longest time a target is visible (depends on the screen size).
+func _compute_lane_geometry():
 	_lane_speed.clear()
-	var player_pos_for_lanes = $Player.global_position
+	_visible_time = 0.0
+	var player_position = $Player.global_position
 	for lane in range(LANE_COUNT):
 		var lane_angle = -180.0 + lane * (360.0 / LANE_COUNT)
 		var lane_direction = Vector2.from_angle(deg_to_rad(lane_angle))
-		var visible_length = _ray_viewport_exit_distance(player_pos_for_lanes, lane_direction)
-		_lane_speed.append((visible_length + NOTE_SPAWN_MARGIN) / 1.2)
+		var visible_length = _ray_viewport_exit_distance(player_position, lane_direction)
+		var lane_speed = (visible_length + NOTE_SPAWN_MARGIN) / 1.2
+		_lane_speed.append(lane_speed)
+		_visible_time = max(_visible_time, visible_length / lane_speed)
 
 func show_menu():
 	playing = false
@@ -457,11 +458,6 @@ func _on_start_pressed():
 func _on_quit_pressed():
 	get_tree().quit()
 
-func _get_lane_index_for_pitch(pitch):
-	var range_size = max(_max_pitch - _min_pitch, 1)
-	var t = float(pitch - _min_pitch) / float(range_size)
-	return clamp(int(floor(t * LANE_COUNT)), 0, LANE_COUNT - 1)
-
 # --- Segments: fast notes merged into one target ---
 # A chart entry may carry "steps": the notes that play when the target is hit, each with its
 # own offset (seconds after the start of the target), pitches and duration.
@@ -518,77 +514,79 @@ func _merge_fast_notes():
 		_finish_segment(segment)
 	notes = merged
 
-# Keeps at most MAX_OBJECTS_PER_LANE targets on one lane inside LANE_OBJECT_WINDOW seconds.
-# A target that would exceed the limit is merged into the previous target of the same lane.
-func _limit_lane_load():
-	var kept_by_lane = {}
-	var result = []
+# Keeps at most MAX_VISIBLE_TARGETS targets on the screen at the same time. A target is on the
+# screen for at most _visible_time seconds before it is hit, so no more than MAX_VISIBLE_TARGETS
+# targets may start inside one such window. A target that would break this joins the previous one.
+func _limit_visible_targets():
+	var kept = []
 	for note in notes:
-		var lane = note["lane"]
-		if not kept_by_lane.has(lane):
-			kept_by_lane[lane] = []
-		var kept = kept_by_lane[lane]
-
 		var in_window = 0
 		for i in range(kept.size() - 1, -1, -1):
-			if note["time"] - kept[i]["time"] > LANE_OBJECT_WINDOW:
+			if note["time"] - kept[i]["time"] >= _visible_time:
 				break
 			in_window += 1
 
-		if in_window >= MAX_OBJECTS_PER_LANE:
+		if in_window >= MAX_VISIBLE_TARGETS:
 			_append_to_segment(kept[kept.size() - 1], note)
 		else:
 			kept.append(note)
-			result.append(note)
 
-	for note in result:
+	for note in kept:
 		_finish_segment(note)
-	notes = result
+	notes = kept
 
-# Gives every chart entry a lane. The natural lane comes from the highest pitch of the entry.
-# If that would put more than MAX_LANES_IN_WINDOW different lanes inside LANE_WINDOW seconds,
-# the entry is moved to the nearest lane that is already in use.
+# Gives every target a lane (direction), independent of its pitch. Among the lanes that keep all
+# the rules, the one used least in the last LANE_SPREAD_WINDOW seconds is chosen; ties go to the
+# lane closest to the previous target, so the player has to turn as little as possible.
 func _assign_lanes():
-	var recent = []
+	var placed = []
+	var previous_lane = 0
 	for note in notes:
-		var natural = _get_lane_index_for_pitch(_highest_pitch(note["pitches"]))
+		var counts = []
+		for lane in range(LANE_COUNT):
+			counts.append(0)
+		var short_lanes = []
+		for i in range(placed.size() - 1, -1, -1):
+			var age = note["time"] - placed[i]["time"]
+			if age >= LANE_SPREAD_WINDOW:
+				break
+			counts[placed[i]["lane"]] += 1
+			if age <= LANE_WINDOW and not short_lanes.has(placed[i]["lane"]):
+				short_lanes.append(placed[i]["lane"])
 
-		while not recent.is_empty() and note["time"] - recent[0]["time"] > LANE_WINDOW:
-			recent.pop_front()
+		var best = -1
+		var best_count = 0
+		var best_distance = 0
+		for lane in range(LANE_COUNT):
+			if counts[lane] >= MAX_TARGETS_PER_LANE:
+				continue
+			if not short_lanes.has(lane) and short_lanes.size() >= MAX_LANES_IN_WINDOW:
+				continue
+			var distance = _circular_lane_distance(lane, previous_lane)
+			if best < 0 or counts[lane] < best_count or (counts[lane] == best_count and distance < best_distance):
+				best = lane
+				best_count = counts[lane]
+				best_distance = distance
 
-		# Lanes used inside the window, the most recently used lane first.
-		var lanes_used = []
-		for i in range(recent.size() - 1, -1, -1):
-			if not lanes_used.has(recent[i]["lane"]):
-				lanes_used.append(recent[i]["lane"])
+		if best < 0:
+			if placed.is_empty():
+				best = 0
+			else:
+				# No lane can take this target without breaking a rule: it joins the previous target.
+				_append_to_segment(placed[placed.size() - 1], note)
+				continue
 
-		var lane = natural
-		if not lanes_used.has(natural) and lanes_used.size() >= MAX_LANES_IN_WINDOW:
-			lane = _closest_lane(natural, lanes_used)
+		note["lane"] = best
+		previous_lane = best
+		placed.append(note)
 
-		note["lane"] = lane
-		recent.append(note)
-
-func _closest_lane(natural, lanes_used):
-	var best = lanes_used[0]
-	var best_distance = _circular_lane_distance(natural, best)
-	for lane in lanes_used:
-		var distance = _circular_lane_distance(natural, lane)
-		if distance < best_distance:
-			best = lane
-			best_distance = distance
-	return best
+	for note in placed:
+		_finish_segment(note)
+	notes = placed
 
 func _circular_lane_distance(a, b):
 	var distance = abs(a - b)
 	return min(distance, LANE_COUNT - distance)
-
-func _highest_pitch(pitches):
-	var highest = pitches[0]
-	for p in pitches:
-		if p > highest:
-			highest = p
-	return highest
 
 func create_miss_boundary():
 	var miss_boundary = load("res://miss_boundary.gd").new()

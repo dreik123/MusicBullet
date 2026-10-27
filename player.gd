@@ -2,12 +2,6 @@ extends CharacterBody2D
 
 const RAYCAST_MARGIN = 100.0
 
-# Holding the shoot button fires automatically at the first note on the aimed lane, but only at
-# that note's ideal moment, and it gives at most HOLD_MAX_ACCURACY of the points.
-# A well-timed single click can still score the full 100%.
-const HOLD_MAX_ACCURACY = 0.5
-const HOLD_TOLERANCE = 0.08  # seconds after the ideal moment in which a held shot may hit
-
 @onready var muzzle = $Muzzle
 @onready var aim_line = $AimLine
 @onready var note_audio = $NoteAudio
@@ -22,9 +16,6 @@ func _process(delta):
 	var snapped_angle_rad = get_tree().current_scene._snap_angle_to_lane_rad(mouse_angle_rad)
 	set_global_rotation(snapped_angle_rad)
 	update_aim_line()
-
-	if Input.is_action_pressed("shoot"):
-		_hold_fire(delta)
 
 func get_raycast_length():
 	return get_tree().current_scene.get_note_spawn_radius() + RAYCAST_MARGIN
@@ -70,18 +61,6 @@ func shoot():
 	if note != null:
 		handle_note_hit(note, get_tree().current_scene.music_time)
 
-# Called every frame while the shoot button is held.
-func _hold_fire(delta):
-	var main = get_tree().current_scene
-	if not main.get("playing") or main.get("level_ended"):
-		return
-	var note = _cast_ray()
-	if note == null:
-		return
-	var late_by = main.music_time - note.get_ideal_time()
-	if late_by >= 0.0 and late_by <= max(HOLD_TOLERANCE, delta * 2.0):
-		handle_note_hit(note, main.music_time, HOLD_MAX_ACCURACY)
-
 func play_note_sound(pitch: int, duration: float):
 	var player = AudioStreamPlayer.new()
 	player.stream = note_audio.stream
@@ -104,8 +83,8 @@ func play_steps(steps):
 		for pitch in step["pitches"]:
 			play_note_sound(pitch, step["duration"])
 
-func handle_note_hit(note, shot_time, max_accuracy = 1.0):
-	# A note that was already hit this frame must not be scored twice.
+func handle_note_hit(note, shot_time):
+	# A note that was already hit must not be scored twice.
 	if note.is_queued_for_deletion():
 		return
 
@@ -115,7 +94,7 @@ func handle_note_hit(note, shot_time, max_accuracy = 1.0):
 	var timing_error = shot_time - note.get_ideal_time()
 	var absolute_error = abs(timing_error)
 
-	var accuracy = min(max(0.0, 1.0 - absolute_error / 0.5), max_accuracy)
+	var accuracy = max(0.0, 1.0 - absolute_error / 0.5)
 	var note_score = round(accuracy * 100)
 	var recorded_note = {
 		"pitches": note.pitches,
