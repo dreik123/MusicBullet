@@ -1,19 +1,21 @@
 # MusicBullet
 
-A small 2D music-arcade prototype made in Godot 4.
+A small 2D music-arcade game made in Godot 4.
 
-Notes of a real piano piece fly toward you from eight directions. Aim, shoot them in time, and at the end of the level the game plays back the melody **you** actually played.
+Musical targets fly toward you from eight directions. Aim, shoot them at the right moment, and at the end of the level you get a score, a rank from F to SSS, and a replay of the melody **you** actually played. You can also load your own music from MuseScore.
 
 <!-- Add a screenshot or a short GIF here, e.g. ![gameplay](docs/gameplay.gif) -->
 
 ## How it plays
 
-- **Aim:** move the mouse. The aim snaps to one of 8 directions ("lanes").
-- **Shoot:** the `shoot` input action (see *Project → Project Settings → Input Map* for the binding). The shot is instant: it hits the first note on the aimed lane.
-- **Timing:** each note changes colour as it approaches: cold when it enters the screen, hottest in the middle of its flight, cold again when it reaches the ring around the player. The ring is the point of no return: a note that touches it is missed and disappears.
-- **Chords:** notes that sound at the same moment in the music are one target. One shot plays the whole chord.
-- **End of level:** after the last note, the game replays the music in its original rhythm, but only the notes you hit. Missed notes are silence.
-- **Debug:** press **F1** at any time to hear the whole piece as written.
+- **Aim:** move the mouse. The aim snaps to one of 8 directions.
+- **Shoot:** the `shoot` input action (see *Project > Project Settings > Input Map* for the binding). The shot is instant and hits the first target on the aimed direction. Only targets that are visible on the screen can be hit.
+- **Timing:** a target changes colour as it comes closer: cold, then hottest in the middle of its flight, then cold again at the ring around the player. Shoot when it is hottest for up to 100 points. A target that touches the ring is missed.
+- **Targets can be more than one note.** Notes that sound together are one target (one shot plays the whole chord). Very fast notes are merged into a long target with a tail; one shot plays the whole run with its original rhythm.
+- **Never too crowded.** At most 4 targets are on the screen at once, and one direction is used by at most 3 targets within 5 seconds. Busy music is simplified by merging targets, the music itself is never changed.
+- **Score and rank:** the score is shown at the top. After the level you see the result, the number of hits and a rank (F, E, D, C, B, A, S, SS, SSS) based on the percent of the maximum score.
+- **Replay:** the game plays back the melody you hit, in the original rhythm. Targets you missed are silence. Press *Play again* or *Menu* at any time to stop it.
+- **Debug:** press **F1** to hear the whole melody as written.
 
 ## Run it
 
@@ -21,42 +23,58 @@ Notes of a real piano piece fly toward you from eight directions. Aim, shoot the
 2. Open the project folder (the one with `project.godot`) in Godot.
 3. Press Play (F5). If Godot asks for a main scene, choose `main.tscn`.
 
-## The music
+## Use your own music
 
-The level is an original piano piece, "FirstLevel" (4/4, 120 BPM, about 34 seconds), written by the author. The game chart was generated from the music score by a script: both hands are merged, and simultaneous notes are grouped into chords.
+1. In MuseScore open **File > Export > MusicXML** and save a `.mxl`, `.musicxml` or `.xml` file.
+2. In the game menu press **Load melody** and choose the file, or drag the file onto the game window while the menu is open.
+3. The menu shows the title, the number of targets and the length. Press **Start**.
+4. **Built-in melody** brings back the original piece.
 
-All sounds come from one piano sample (`note_piano.wav`, middle C). Other pitches are made by changing the playback speed, and each note fades out after the length written in the score.
+Notes about imported music:
+
+- All instruments and staves are merged into one melody. Percussion and grace notes are skipped, tied notes become one long note, tempo changes are followed.
+- Repeats and endings are not expanded, the piece is played once as written. Native `.mscz` files are not supported, export MusicXML instead.
+- The first note is moved to the start of the level.
+
+## The built-in music
+
+The built-in level is an original piano piece, "FirstLevel" (4/4, 120 BPM, about 34 seconds), written by the author. All sounds come from one piano sample (`note_piano.wav`, middle C). Other pitches are made by changing the playback speed, and each note fades out after the length written in the score.
 
 ## Project structure
 
 | File | What it does |
 | --- | --- |
-| `main.gd` | Game clock, the chart, note spawning, level end, melody playback |
-| `player.gd` | Aiming (8 lanes), hitscan shooting, sound on hit, recording your hits |
-| `note.gd` | A flying note: movement, colour timing indicator, miss detection |
-| `miss_boundary.gd` | The ring around the player (created from code) |
+| `main.gd` | Game states, menu, score, results and rank, chart processing, spawning, melody replay |
+| `player.gd` | Aiming (8 directions), instant shot, sound on hit, scoring |
+| `note.gd` | A flying target: movement, colour timing indicator, tail of merged notes |
+| `miss_boundary.gd` | The ring around the player |
+| `chart_importer.gd` | Reads MusicXML files and converts them into the game's melody format |
 | `PROJECT_CONTEXT.md` | Detailed technical notes, mainly for AI coding assistants |
 
 ## Design notes
 
-Some problems this prototype had to solve:
+Problems this game had to solve:
 
-- **Too many notes at once.** Each note's flight time depends on how close it is to the previous note in the music: dense passages get short flights (fewer notes on screen), slow passages get long flights (more time to react).
-- **Notes overtaking each other.** Speed is fixed per lane, not per note, and the spawn distance changes instead. Notes on one lane keep their order.
-- **Hitting what you can't see.** The shot ray is cut at the screen edge, so off-screen notes cannot be hit.
-- **Polyphony vs. one action.** Real music has several notes at once. They are merged into one target, so one shot is enough.
+- **Too many notes at once.** Notes that start together or very close to each other are merged into one target. The number of targets on the screen and per direction is limited.
+- **Spam from one direction.** The direction of a target is not tied to its pitch. Directions are spread out, and the one closest to the previous target is preferred, so the player turns as little as possible.
+- **Targets overtaking each other.** Every direction has its own constant speed, and targets that must arrive later simply start farther away.
+- **Hitting what you cannot see.** The shot ray is cut at the screen edge.
+- **Playing any music.** A converter built into the game reads MusicXML, including several voices, ties, tempo changes and compressed files.
+
+All the limits are constants at the top of `main.gd` (for example `MERGE_GAP`, `MAX_VISIBLE_TARGETS`, `MAX_TARGETS_PER_LANE`, `RANKS`) and can be tuned.
 
 ## Known limitations
 
-- Scoring is not reliable yet: accuracy is measured against the wrong reference time, so scores are mostly zero. The score is also not shown on screen. This does not affect the melody playback.
-- Only one level. No menu, restart, pause or other UI.
-- The aim line is drawn longer than the real shot range.
 - Very low notes sound smeared, because one sample is slowed down a lot. A second, lower sample would fix this.
+- The aim line is drawn longer than the real shot range.
+- The screen layout is calculated once at startup; changing the window size during the game is not handled.
+- No pause, and a running level cannot be left.
+- Only simple shapes are used for graphics. Custom sprites are planned.
 
 ## Next steps
 
-This is the end of the prototype. Plans for a fuller game: more levels, several musical parts (for example melody, bass, drums) with different mechanics per part, and a final mix of everything the player recorded.
+Custom sprites and graphics, a second sample for low notes, more levels with several musical parts (for example melody, bass and drums) and a final mix of everything the player recorded.
 
 ## About this project
 
-A one-month learning and portfolio project. The game idea, the music and the design decisions are the author's; the code was written with the help of several AI coding assistants and reviewed and tested by the author.
+A learning and portfolio project. The game idea, the music and the design decisions are the author's; the code was written with the help of several AI coding assistants and reviewed and tested by the author.

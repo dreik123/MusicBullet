@@ -1,90 +1,139 @@
 # MusicBullet — Project Context
 
-Briefing for AI coding assistants and for future me. Describes the **actual state of the code** at the end of the prototype phase. If code and this file disagree, the code wins — read the real files before editing.
+Briefing for AI coding assistants and for future me. It describes the **actual state of the code**. If the code and this file disagree, the code wins: read the real files before editing.
 
 ## Project
 
-MusicBullet is a small 2D music/arcade game prototype made in Godot 4 (GDScript).
+MusicBullet is a small 2D music-arcade game made in Godot 4 (GDScript). It is a learning and portfolio project built with an AI-assisted workflow.
 
-It is a learning and portfolio project, built in about a month with an AI-assisted workflow. The prototype is finished; it is published as a single playable level. Work on a fuller game (more levels, more musical parts) continues separately.
+Status: the prototype is finished and published. It was then extended into a small complete game: start menu, live score, results screen with a rank, loading any melody from a MusicXML file, and automatic simplification of busy music. Custom sprites are postponed.
 
-## Core Game Concept
+## Core game concept
 
-- The player stands in the middle of the screen and aims with the mouse. Aim snaps to 8 directions ("lanes").
-- Musical notes fly in from outside the screen along those 8 lanes toward the player.
-- The player shoots an instant ray (hitscan) along the aimed lane. The first note on the ray is hit: its pitch(es) sound immediately.
-- A note that touches the "miss ring" around the player counts as missed and disappears.
-- At the end of the level the game plays back the melody the player actually hit, in the rhythm of the original chart. Missed notes are silence.
+- The player stands in the middle of the screen and aims with the mouse. The aim snaps to 8 directions ("lanes").
+- Targets fly in from outside the screen along those lanes toward the player.
+- The player shoots an instant ray (hitscan) along the aimed lane. The first target on the ray is hit and its notes sound immediately.
+- A target that touches the "miss ring" around the player is missed and disappears.
+- When the level ends, the results screen shows the score and a rank, and the game plays back the melody the player actually hit, in the rhythm of the original music. Missed targets are silence.
 
-The point of the game: turn real, polyphonic music into gameplay, where the player cannot perform unlimited simultaneous actions. Notes sounding at the same moment are merged into one chart entry and hit together with one shot.
+A target is **not always one note**: simultaneous notes (chords) and very fast runs of notes are merged into one target, so one shot plays all of it.
 
-## Music / Chart
+## Game flow
 
-- The level is the author's own piano piece "FirstLevel" (4/4, 120 BPM, about 34 seconds). Both hands (treble and bass staves) are merged into one chart.
-- Chart format, in `main.gd` as `var notes`:
+`main.gd` keeps the state in `playing` and `level_ended`:
+
+1. **Menu** (`show_menu()`): title, melody info, Start, Load melody, Built-in melody (only when a custom melody is loaded), Quit. A red message line shows import errors. Dropping a file on the window loads it while the menu is open.
+2. **Playing** (`start_game()`): score label at the top, targets fly, the Player can shoot.
+3. **Results** (`end_level()` -> `_show_results()`): rank letter, score, hits (`Hits: a / b`), Play again, Menu. The melody playback starts at the same time and stops when a button is pressed (`_playback_id`).
+
+`F1` plays the whole melody as written (debug).
+
+## Files
+
+| File | Role |
+| --- | --- |
+| `main.gd` | Root `Node2D` of `main.tscn`. Clock, chart processing, spawning, UI (built from code), score, rank, level end, melody playback |
+| `player.gd` | `CharacterBody2D`. Aim snapping, hitscan shot, sound on hit, scoring, recording hits |
+| `note.gd` | `Area2D` target. Movement, colour timing indicator, segment tail, ideal hit time |
+| `miss_boundary.gd` | `Node2D` created from code and added to the Player. Draws the miss ring |
+| `chart_importer.gd` | MusicXML -> chart converter (static functions) |
+| `note_piano.wav` | The only sound sample (middle C piano) |
+
+All UI is created in code (`CanvasLayer` + `Control` nodes). Do not edit `.tscn` files by hand.
+
+## Chart pipeline
+
+A melody is an array of entries:
 
 ```gdscript
-{"time": 0.5, "pitches": [69], "duration": 0.25}
+{"time": 0.5, "pitches": [69], "duration": 0.25}   # raw entry: time in seconds
 ```
 
-  - `time`: onset in seconds from chart start
-  - `pitches`: MIDI note numbers sounding at that onset (several = chord, hit with one shot)
-  - `duration`: how long the sound is held before a 0.25 s fade-out
-- 76 entries. The chart was generated from the MusicXML score by script, not typed by hand. Chord notes must be attached to the onset of their main note (this was a real bug once: chord notes got shifted by one beat).
-- `travel_time` is **not** in the data; `main.gd` adds it to each entry at startup (see Timing).
+`prepare_chart()` turns the raw array into the final targets. **Order matters**:
 
-## Architecture
+1. `_compute_lane_geometry()`: speed of every lane and `_visible_time` (the longest time a target stays on the screen).
+2. `_merge_fast_notes()`: entries closer than `MERGE_GAP` (0.2 s) become one segment (max `MAX_SEGMENT_LENGTH` = 1.5 s).
+3. `_limit_visible_targets()`: no more than `MAX_VISIBLE_TARGETS` (4) targets may start inside one `_visible_time` window; extra ones join the previous target.
+4. `_assign_lanes()`: gives each target a lane (see below). A target that cannot be placed without breaking a rule joins the previous target.
+5. `travel_time` is added to every target.
 
-### `main.gd` (root `Node2D`, scene `main.tscn`)
+A final target looks like this:
 
-- Owns the clock `music_time`, the chart `notes`, spawning, `recorded_notes`, `score`, level end and melody playback.
-- `_ready()`: finds min/max pitch of the chart, computes each entry's `travel_time`, creates the miss ring (`create_miss_boundary()`), computes per-lane speeds.
-- `spawn_due_notes()` / `spawn_note()`: spawn a note when `music_time >= time - travel_time`.
-- `check_level_end()`: level ends when all notes are spawned and none are active, or `music_time > last_note_time + 1.0`.
-- `play_recorded_melody()`: waits 1 s, then walks the chart; an entry is played if a recorded hit has `orig_time` equal to the entry time (±0.01 s) and contains all its pitches.
-- `play_reference_melody()`: debug tool, press **F1** to hear the whole chart as written, independent of hits.
-- Helpers used by other scripts: `_snap_angle_to_lane_rad()` (Player), `get_note_spawn_radius()` (Player), `_ray_viewport_exit_distance()` (Player, Main), `get_viewport_entry_ratio()` (Note).
+```gdscript
+{"time": 12.0, "pitches": [60, 64], "duration": 1.3, "lane": 3, "travel_time": 1.8,
+ "steps": [{"offset": 0.0, "pitches": [60], "duration": 0.5},
+           {"offset": 0.125, "pitches": [64], "duration": 0.5}]}
+```
 
-### `player.gd` (`CharacterBody2D`, children: `Muzzle`, `AimLine`, `NoteAudio`)
+- `steps` are the notes that play when the target is hit (offset = seconds after the start of the target). A normal target has one step with offset 0. `pitches` is the union of all step pitches and is used to match recorded hits.
+- Merging never changes the music: every note keeps its exact time and pitch.
+- `_default_notes` keeps the untouched raw built-in chart. `prepare_chart()` is always called on a fresh raw copy (`_ready`, `_load_melody`, `_use_built_in_melody`).
 
-- Rotates toward the mouse, snapped to the nearest of 8 lanes.
-- On the `shoot` input action: raycast from `Muzzle`, length = min(spawn radius + margin, distance to the screen edge), so notes outside the visible area cannot be hit.
-- `handle_note_hit()`: plays every pitch of the note, computes timing error / accuracy / score, appends a dictionary to `main.recorded_notes` (keys: `pitches`, `time`, `error`, `accuracy`, `score`, `orig_time`), frees the note.
-- `play_note_sound(pitch, duration)`: creates a new `AudioStreamPlayer` per sound with `pitch_scale = 2^((pitch-60)/12)` from the single sample `res://note_piano.wav` (a C4 piano note), holds it for `duration`, fades out over 0.25 s, then frees it. One player per sound lets notes ring over each other.
+### Lane (direction) rules
 
-### `note.gd` (`Area2D`, child `Polygon2D`, group `notes`)
+The lane does **not** depend on pitch. `_assign_lanes()` picks, among the lanes that keep the rules, the one used least in the last `LANE_SPREAD_WINDOW` (5 s); ties go to the lane closest to the previous target.
 
-- `setup(spawn_time, pitches, target_position, arrival_time)`: `time` is the **spawn** time (chart time minus travel time); `arrival_time` is the chart time. Direction is fixed at spawn (straight line to the player position).
-- Moves at a constant `note_speed`. Removed when it touches the miss ring.
-- Colour: `self_modulate` goes cold → hot → cold. Heat peaks in the middle of the note's visible flight and is cold again when the note touches the miss ring. Uses `visible_duration` (time spent on screen, from `get_viewport_entry_ratio`).
+- One lane has at most `MAX_TARGETS_PER_LANE` (3) targets within `LANE_SPREAD_WINDOW` (5 s).
+- At most `MAX_LANES_IN_WINDOW` (2) different lanes are used within `LANE_WINDOW` (1 s). Set it to `LANE_COUNT` to switch this off.
 
-### `miss_boundary.gd` (`Node2D`)
+Python simulations on the built-in melody, a dense synthetic piece and a steady stream, on two screen sizes, confirmed all limits (including the exact number of targets visible at the same moment).
 
-- Created from code by `main.gd` and added as a child of the Player (no scene node). Draws the ring (radius `MISS_BOUNDARY_RADIUS`, 100 px). `note.gd` reads the radius from here.
+## MusicXML importer (`chart_importer.gd`)
 
-## Timing and geometry model (important, easy to break)
+`ChartImporter.import_file(path)` returns `{"ok", "error", "title", "notes"}`.
 
-- **Lanes**: 8 lanes, 45° apart, starting at -180° (angle -90° is straight up). A chart entry's lane comes from its **highest** pitch, mapped linearly from the chart's min..max pitch to lane 0..7.
-- **Per-lane speed**: `lane_speed = (visible_length + NOTE_SPAWN_MARGIN) / 1.2`, where `visible_length` is the distance from the Player to the screen edge along that lane. Same lane = same speed, so notes on one lane can never overtake each other.
-- **Spawn distance**: `lane_speed * travel_time`. A note always needs exactly `travel_time` seconds to reach the player.
-- **travel_time per entry**: first entry 3.0 s; others `clamp(remap(gap, 0.25, 1.25, 1.2, 3.0), 1.2, 3.0)` where `gap` is the time since the previous entry. Dense passages get short travel times (fewer notes on screen at once), sparse passages get long ones (more reaction time). The 1.2 in the speed formula is this minimum, so the fastest notes spawn just outside the screen.
-- `note_travel_time = 3.5` in `main.gd` is only the lead-in: `music_time` starts at `-3.5`.
-- Gameplay clock and chart clock are the same clock: a note arrives at `music_time == chart time`.
+- Formats: `.musicxml`, `.xml` and compressed `.mxl` (read with `ZIPReader`). `score-partwise` only. Export from MuseScore: File > Export > MusicXML.
+- Timing follows the MusicXML model: a cursor per measure, `<backup>`/`<forward>`, chord notes share the onset of their main note, `divisions` can change, tempo changes (`<sound tempo>`) are followed.
+- Tied notes are merged into one long note. Grace notes and unpitched (percussion) notes are skipped.
+- All parts and staves are merged into one chart. The first note is moved to time 0.
+- Not supported: repeats and endings (not expanded), `.mscz`, `score-timewise`, choosing a part.
+- The algorithm was validated in Python against the real score and ten edge-case tests (voices, ties, tempo, divisions, parts, pickup measure, percussion).
 
-## Known issues
+## Timing, geometry and scoring
 
-- **Scoring is unreliable.** `handle_note_hit()` computes `timing_error = shot_time - note.time`, but `note.time` is the spawn time, not an ideal hit time. Accuracy and score are therefore mostly 0. Nothing else depends on them (melody playback only uses hit/miss), and the score is not displayed yet.
-- The aim line is drawn at the full raycast length, not clipped to the screen edge (the ray itself is clipped).
+- **Lane speed**: `lane_speed = (visible_length + NOTE_SPAWN_MARGIN) / 1.2`, where `visible_length` is the distance from the Player to the screen edge along that lane. Same lane, same speed, so targets on one lane never overtake each other.
+- **Spawn distance** = `lane_speed * travel_time`, so a target always needs exactly `travel_time` seconds to reach the Player. Targets spawn at `time - travel_time`.
+- **travel_time**: first target 3.0 s; others `clamp(remap(gap, 0.25, 1.25, 1.2, 3.0), 1.2, 3.0)` where `gap` is the time since the previous target.
+- `note_travel_time = 3.5` is only the lead-in: `music_time` starts at `-3.5`. Game clock and chart clock are the same clock.
+- **Colour**: cold -> hot -> cold. The hottest moment is the middle of the visible flight, measured to the miss ring (`get_ideal_time()` in `note.gd`).
+- **Score**: `timing_error = shot_time - note.get_ideal_time()`; `accuracy = max(0, 1 - |error| / 0.5)`; points = `round(accuracy * 100)`, so a perfect hit gives 100. `add_score()` in `main.gd` updates the label.
+- **Rank**: percent of `targets * MAX_SCORE_PER_NOTE`, thresholds in the `RANKS` constant (SSS 95, SS 90, S 80, A 70, B 60, C 50, D 40, E 25, F 0).
+- **Shot range**: the ray stops at the screen edge (`_ray_viewport_exit_distance`), so off-screen targets cannot be hit.
+- **Sound**: `play_note_sound(pitch, duration)` creates a new `AudioStreamPlayer` per sound, `pitch_scale = 2^((pitch - 60) / 12)`, holds it for `duration`, fades out in 0.25 s, then frees it. `play_steps()` plays the steps of a hit target with their offsets.
+- **Melody playback**: `_collect_playback_events()` builds a time-sorted list from the `steps` of all hit targets (`_was_hit()` matches `orig_time` and pitches); `_play_events()` plays it and can be cancelled.
+
+## Tunable constants
+
+| Constant | Where | Default | Meaning |
+| --- | --- | --- | --- |
+| `MERGE_GAP` | `main.gd` | 0.2 | fast notes closer than this are merged |
+| `MAX_SEGMENT_LENGTH` | `main.gd` | 1.5 | longest segment, seconds |
+| `MAX_VISIBLE_TARGETS` | `main.gd` | 4 | targets on screen at once |
+| `MAX_TARGETS_PER_LANE` / `LANE_SPREAD_WINDOW` | `main.gd` | 3 / 5.0 | per-lane limit |
+| `MAX_LANES_IN_WINDOW` / `LANE_WINDOW` | `main.gd` | 2 / 1.0 | lanes used in a short window |
+| `RANKS` | `main.gd` | see above | rank thresholds in percent |
+| `TXT_*` | `main.gd` | English | all UI texts |
+| `MISS_BOUNDARY_RADIUS` | `miss_boundary.gd` | 100 | miss ring radius |
+
+## Known issues and limits
+
 - Very low notes (bass down to about MIDI 36) are made by slowing the C4 sample to 0.25x, which sounds smeared. A second, lower sample would fix it.
-- `AudioStreamPlayer` count is not limited; very dense passages create many short-lived players.
-- No UI, no restart, no pause, one level only.
+- The aim line is drawn at the full raycast length, not clipped to the screen edge (the ray itself is clipped).
+- The colour curve is measured to the Player centre but anchored to the miss ring, so targets enter the screen already slightly warm.
+- Lane speeds and the visible-time limit are computed once at startup; changing the window size while running leaves them stale.
+- The number of `AudioStreamPlayer` nodes is not limited.
+- No pause and no way to leave a running level.
+- Importer limits: see the importer section.
 
 ## Working conventions for assistants
 
-- GDScript for Godot 4. Tabs for indentation. Use the built-in `remap()`; do not write a custom one. No Godot 3 syntax (e.g. old-style `connect`).
-- Do **not** edit `.tscn` files by hand; create nodes from code (as `create_miss_boundary()` does).
+- GDScript for Godot 4, tabs for indentation. Use the built-in `remap()`. No Godot 3 syntax.
+- **Everything written into files must be in English** (code, comments, UI texts, docs).
+- Do not edit `.tscn` files by hand; create nodes from code.
 - Before adding a function or variable, search the project for an existing one with the same name and edit it in place. Duplicated functions were the most common failure in this project.
 - When asked to show existing code, paste it verbatim from the file; never reconstruct it from memory.
-- Make small, single-purpose changes and report a diff.
-- Do not change timing, scoring, or chart format unless asked. Chart data should be regenerated from the score by script, not edited by hand.
-- Dead-code check that worked: count references to every function/variable across all `.gd` files; a symbol with zero uses besides its declaration is unused. Note that `get_viewport_entry_ratio()` looks unused in `main.gd` but is called from `note.gd`.
+- Replacing a whole file overwrites local edits: check `git diff` afterwards.
+- Make small, single-purpose changes and report a diff. Do not change timing, scoring or the chart format unless asked.
+- Chart data must be generated from the score by script (the importer), not typed by hand. Chord notes belong to the onset of their main note.
+- Dead-code check that worked: count references to every function and variable across all `.gd` files. Beware of calls between scripts: `get_viewport_entry_ratio()` is defined in `main.gd` but called from `note.gd`.
+- Verify algorithms with a small reference implementation (Python) before porting them to GDScript.
