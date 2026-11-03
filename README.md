@@ -4,7 +4,7 @@ A small 2D music-arcade game made in Godot 4.
 
 Musical targets fly toward you from eight directions. Aim, shoot them at the right moment, and at the end of the level you get a score, a rank from F to SSS, and a replay of the melody **you** actually played. You can also load your own music from MuseScore.
 
-<!-- Add a screenshot or a short GIF here, e.g. ![gameplay](docs/gameplay.gif) -->
+![MusicBullet gameplay](docs/screenshot.png)
 
 ## How it plays
 
