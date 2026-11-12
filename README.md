@@ -15,7 +15,7 @@ Musical targets fly toward you from eight directions. Aim, shoot them at the rig
 - **Never too crowded.** At most 4 targets are on the screen at once, and one direction is used by at most 3 targets within 5 seconds. Busy music is simplified by merging targets, the music itself is never changed.
 - **Score and rank:** the score is shown at the top. After the level you see the result, the number of hits and a rank (F, E, D, C, B, A, S, SS, SSS) based on the percent of the maximum score.
 - **Replay:** the game plays back the melody you hit, in the original rhythm. Targets you missed are silence. Press *Play again* or *Menu* at any time to stop it.
-- **Debug:** press **F1** to hear the whole melody as written.
+- **Debug:** press **F1** to hear the whole melody as written (only when running from the editor or a debug build).
 
 ## Run it
 

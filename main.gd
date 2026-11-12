@@ -170,11 +170,18 @@ var notes = [
 	{"time": 32.0, "pitches": [48, 55, 59, 67], "duration": 2.0},
 ]
 
+# Debug: plays the whole melody as written. It replaces any playback that is running,
+# and it is cancelled like every other playback (Start, Menu, level end).
 func play_reference_melody():
-	_play_events(_collect_playback_events(false), -1)
+	_playback_id += 1
+	_play_events(_collect_playback_events(false), _playback_id)
 
+# F1 works only in debug builds (editor and debug exports). Held keys repeat as echo
+# events, so echoes are ignored: one press starts one playback.
 func _unhandled_input(event):
-	if event is InputEventKey and event.pressed and event.keycode == KEY_F1:
+	if not OS.is_debug_build():
+		return
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F1:
 		play_reference_melody()
 
 func _ray_viewport_exit_distance(origin: Vector2, direction: Vector2) -> float:
@@ -728,14 +735,13 @@ func _was_hit(chart_note):
 	return false
 
 # Plays the events one after another. A playback that was cancelled (my_id changed) stops.
-# Use my_id = -1 for a playback that cannot be cancelled.
 func _play_events(events, my_id):
 	var last_time = 0.0
 	for event in events:
 		var delay = event["time"] - last_time
 		if delay > 0.0:
 			await get_tree().create_timer(delay).timeout
-			if my_id >= 0 and my_id != _playback_id:
+			if my_id != _playback_id:
 				return
 		for pitch in event["pitches"]:
 			play_melody_sound(pitch, event["duration"])

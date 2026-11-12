@@ -26,7 +26,7 @@ A target is **not always one note**: simultaneous notes (chords) and very fast r
 2. **Playing** (`start_game()`): score label at the top, targets fly, the Player can shoot.
 3. **Results** (`end_level()` -> `_show_results()`): rank letter, score, hits (`Hits: a / b`), Play again, Menu. The melody playback starts at the same time and stops when a button is pressed (`_playback_id`).
 
-`F1` plays the whole melody as written (debug).
+`F1` plays the whole melody as written (debug builds only, `OS.is_debug_build()`). Held-key echoes are ignored. It uses `_playback_id` like every other playback: a new F1 press restarts it, and Start, Menu and the level end cancel it. In the other direction, F1 replaces any running playback, including the replay on the results screen.
 
 ## Files
 
