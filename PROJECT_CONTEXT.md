@@ -53,9 +53,11 @@ A melody is an array of entries:
 
 1. `_compute_lane_geometry()`: speed of every lane and `_visible_time` (the longest time a target stays on the screen).
 2. `_merge_fast_notes()`: entries closer than `MERGE_GAP` (0.2 s) become one segment (max `MAX_SEGMENT_LENGTH` = 1.5 s).
-3. `_limit_visible_targets()`: no more than `MAX_VISIBLE_TARGETS` (4) targets may start inside one `_visible_time` window; extra ones join the previous target.
-4. `_assign_lanes()`: gives each target a lane (see below). A target that cannot be placed without breaking a rule joins the previous target.
+3. `_limit_visible_targets()`: no more than `MAX_VISIBLE_TARGETS` (4) targets may start inside one `_visible_time` window; extra ones join the previous target (within `MAX_SEGMENT_LENGTH`, see below).
+4. `_assign_lanes()`: gives each target a lane (see below). A target that cannot be placed without breaking a rule joins the previous target. It also re-checks the visible-target limit, because step 4 can create new targets (see below).
 5. `travel_time` is added to every target.
+
+Joining the previous target in steps 3 and 4 goes through `_merge_into_previous()`, which keeps `MAX_SEGMENT_LENGTH` for every target (span = start of the last step). Only the steps that fit are merged. The rest goes back into the same stage's queue through `_requeue_rest()`: together with the queued targets that follow it within `MERGE_GAP` (usually the rest of its run of fast notes), it is split into single steps (`_step_entries()`) and merged again by `_merge_fast()` (the rule of step 2). So consecutive targets still start more than `MERGE_GAP` apart, and every new piece is checked against all rules of the stage again. If not even the first step fits, everything is merged anyway (safety net; with the default constants it is not reached in practice, the exact bound depends on the screen size).
 
 A final target looks like this:
 
@@ -76,7 +78,7 @@ The lane does **not** depend on pitch. `_assign_lanes()` picks, among the lanes 
 - One lane has at most `MAX_TARGETS_PER_LANE` (3) targets within `LANE_SPREAD_WINDOW` (5 s).
 - At most `MAX_LANES_IN_WINDOW` (2) different lanes are used within `LANE_WINDOW` (1 s). Set it to `LANE_COUNT` to switch this off.
 
-Python simulations on the built-in melody, a dense synthetic piece and a steady stream, on two screen sizes, confirmed all limits (including the exact number of targets visible at the same moment).
+Python simulations on the built-in melody, a dense synthetic piece and a steady stream, on two screen sizes, confirmed all limits (including the exact number of targets visible at the same moment). After the `MAX_SEGMENT_LENGTH` split and the spawn-distance change they were re-run as a fuzz test (tens of thousands of dense random charts, several screen sizes, tuned constants, a frame-by-frame spawn model). The scripts are not in the repository.
 
 ## MusicXML importer (`chart_importer.gd`)
 
@@ -92,7 +94,7 @@ Python simulations on the built-in melody, a dense synthetic piece and a steady 
 ## Timing, geometry and scoring
 
 - **Lane speed**: `lane_speed = (visible_length + NOTE_SPAWN_MARGIN) / 1.2`, where `visible_length` is the distance from the Player to the screen edge along that lane. Same lane, same speed, so targets on one lane never overtake each other.
-- **Spawn distance** = `lane_speed * travel_time`, so a target always needs exactly `travel_time` seconds to reach the Player. Targets spawn at `time - travel_time`.
+- **Spawn distance** = `lane_speed * max(time - music_time, 0.0)` at the moment of spawning, so a target always arrives exactly at its `time`. Targets are planned to spawn at `time - travel_time`, but `spawn_due_notes()` spawns them in chart order, and because `travel_time` differs per target a later target can be due before an earlier one; it then spawns a bit late and correspondingly closer. It is never closer than 1.2 s (the `travel_time` minimum) minus one frame, which is off-screen at normal frame rates. After a very long frame (about 1.1 s or more) a target can start inside the miss ring and is removed as missed at once; a negative time left is clamped to 0, so the target is placed at the Player and never on the opposite side.
 - **travel_time**: first target 3.0 s; others `clamp(remap(gap, 0.25, 1.25, 1.2, 3.0), 1.2, 3.0)` where `gap` is the time since the previous target.
 - `note_travel_time = 3.5` is only the lead-in: `music_time` starts at `-3.5`. Game clock and chart clock are the same clock.
 - **Colour**: cold -> hot -> cold. The hottest moment is the middle of the visible flight, measured to the miss ring (`get_ideal_time()` in `note.gd`).
@@ -107,7 +109,7 @@ Python simulations on the built-in melody, a dense synthetic piece and a steady 
 | Constant | Where | Default | Meaning |
 | --- | --- | --- | --- |
 | `MERGE_GAP` | `main.gd` | 0.2 | fast notes closer than this are merged |
-| `MAX_SEGMENT_LENGTH` | `main.gd` | 1.5 | longest segment, seconds |
+| `MAX_SEGMENT_LENGTH` | `main.gd` | 1.5 | longest segment, seconds (all merges keep it, except the safety net in `_merge_into_previous()`) |
 | `MAX_VISIBLE_TARGETS` | `main.gd` | 4 | targets on screen at once |
 | `MAX_TARGETS_PER_LANE` / `LANE_SPREAD_WINDOW` | `main.gd` | 3 / 5.0 | per-lane limit |
 | `MAX_LANES_IN_WINDOW` / `LANE_WINDOW` | `main.gd` | 2 / 1.0 | lanes used in a short window |

@@ -28,7 +28,9 @@ const LANE_WINDOW = 1.0
 const MAX_LANES_IN_WINDOW = 2
 
 # When a target cannot be shown without breaking one of these rules, it is merged into the
-# previous target. The music itself (the time and pitch of every note) never changes.
+# previous target, but only as far as MAX_SEGMENT_LENGTH allows; the notes that do not fit become
+# a new target that must keep the rules too. The music itself (the time and pitch of every note)
+# never changes.
 
 # UI texts (change here to rename or translate)
 const TXT_TITLE = "MusicBullet"
@@ -492,6 +494,42 @@ func _append_to_segment(segment, note):
 		if not segment["pitches"].has(pitch):
 			segment["pitches"].append(pitch)
 
+# The steps of a target as separate single-step entries with absolute times.
+func _step_entries(target):
+	var entries = []
+	for step in _steps_of(target):
+		entries.append({"time": target["time"] + step["offset"], "pitches": step["pitches"].duplicate(), "duration": step["duration"]})
+	return entries
+
+# Merges a target that cannot be shown into the previous target, but only the steps that keep
+# the segment within MAX_SEGMENT_LENGTH (measured like in _merge_fast_notes: up to the start of
+# the last step). Returns the steps that do not fit as single-step entries (see _step_entries),
+# for _requeue_rest; an empty array when everything was merged. If not even the first step fits,
+# everything is merged anyway (a safety net that guarantees progress). With the default
+# constants this does not happen: in _limit_visible_targets the previous target is less than
+# _visible_time (< 1.2 s) older, and in _assign_lanes at most LANE_WINDOW older, unless all
+# eight lanes are full, which the visible-target limit does not allow in practice.
+func _merge_into_previous(previous, note):
+	var entries = _step_entries(note)
+	var fit = 0
+	while fit < entries.size() and entries[fit]["time"] - previous["time"] <= MAX_SEGMENT_LENGTH:
+		fit += 1
+	if fit == 0 or fit == entries.size():
+		_append_to_segment(previous, note)
+		return []
+	for i in range(fit):
+		_append_to_segment(previous, entries[i])
+	return entries.slice(fit)
+
+# Number of targets (sorted by time) that start less than _visible_time before start_time.
+func _targets_in_window(targets, start_time):
+	var count = 0
+	for i in range(targets.size() - 1, -1, -1):
+		if start_time - targets[i]["time"] >= _visible_time:
+			break
+		count += 1
+	return count
+
 func _finish_segment(segment):
 	segment["pitches"].sort()
 	var total = 0.0
@@ -502,10 +540,14 @@ func _finish_segment(segment):
 # Merges runs of fast notes (gap <= MERGE_GAP) into segments. Only the way the music is split into
 # targets changes: every note keeps its pitch and its exact time.
 func _merge_fast_notes():
+	notes = _merge_fast(notes)
+
+# The merge rule of _merge_fast_notes for any time-sorted list of entries. Returns the segments.
+func _merge_fast(entries):
 	var merged = []
 	var current = null
 	var current_last = 0.0  # absolute time of the last note inside the current segment
-	for note in notes:
+	for note in entries:
 		var can_join = false
 		if current != null:
 			var gap = note["time"] - current_last
@@ -519,22 +561,42 @@ func _merge_fast_notes():
 		current_last = current["time"] + _last_offset(current)
 	for segment in merged:
 		_finish_segment(segment)
-	notes = merged
+	return merged
+
+# Puts the steps split off by _merge_into_previous (single-step entries) back into the queue at
+# `index`. Usually they are the tail of a run of fast notes, and the next targets in the queue may
+# continue that run (the run was cut by MAX_SEGMENT_LENGTH). Left alone, the rest could start less
+# than MERGE_GAP before the next target. So the rest and the queued targets that follow it within
+# MERGE_GAP are split into single steps and merged again by the _merge_fast rule: consecutive
+# targets start more than MERGE_GAP apart again. Every new piece is checked against the rules of
+# the calling stage like any other queued target.
+func _requeue_rest(queue, index, rest):
+	var single_steps = rest
+	var run_end = rest.back()["time"]
+	while index < queue.size() and queue[index]["time"] - run_end <= MERGE_GAP:
+		var following = queue[index]
+		queue.remove_at(index)
+		single_steps.append_array(_step_entries(following))
+		run_end = following["time"] + _last_offset(following)
+	var pieces = _merge_fast(single_steps)
+	for i in range(pieces.size()):
+		queue.insert(index + i, pieces[i])
 
 # Keeps at most MAX_VISIBLE_TARGETS targets on the screen at the same time. A target is on the
 # screen for at most _visible_time seconds before it is hit, so no more than MAX_VISIBLE_TARGETS
-# targets may start inside one such window. A target that would break this joins the previous one.
+# targets may start inside one such window. A target that would break this joins the previous one
+# (as far as MAX_SEGMENT_LENGTH allows; the rest comes back as new targets that are checked again).
 func _limit_visible_targets():
 	var kept = []
-	for note in notes:
-		var in_window = 0
-		for i in range(kept.size() - 1, -1, -1):
-			if note["time"] - kept[i]["time"] >= _visible_time:
-				break
-			in_window += 1
-
-		if in_window >= MAX_VISIBLE_TARGETS:
-			_append_to_segment(kept[kept.size() - 1], note)
+	var queue = notes.duplicate()
+	var index = 0
+	while index < queue.size():
+		var note = queue[index]
+		index += 1
+		if _targets_in_window(kept, note["time"]) >= MAX_VISIBLE_TARGETS:
+			var rest = _merge_into_previous(kept[kept.size() - 1], note)
+			if not rest.is_empty():
+				_requeue_rest(queue, index, rest)
 		else:
 			kept.append(note)
 
@@ -545,10 +607,17 @@ func _limit_visible_targets():
 # Gives every target a lane (direction), independent of its pitch. Among the lanes that keep all
 # the rules, the one used least in the last LANE_SPREAD_WINDOW seconds is chosen; ties go to the
 # lane closest to the previous target, so the player has to turn as little as possible.
+# A target split off by _merge_into_previous here did not exist in _limit_visible_targets, so the
+# visible-target limit is checked here again. It can only fail after such a split: otherwise
+# `placed` is a subset of the targets kept there, with the same times.
 func _assign_lanes():
 	var placed = []
 	var previous_lane = 0
-	for note in notes:
+	var queue = notes.duplicate()
+	var index = 0
+	while index < queue.size():
+		var note = queue[index]
+		index += 1
 		var counts = []
 		for lane in range(LANE_COUNT):
 			counts.append(0)
@@ -575,13 +644,16 @@ func _assign_lanes():
 				best_count = counts[lane]
 				best_distance = distance
 
+		var blocked = best < 0 or _targets_in_window(placed, note["time"]) >= MAX_VISIBLE_TARGETS
+		if blocked and not placed.is_empty():
+			# This target cannot be shown without breaking a rule: it joins the previous target
+			# (as far as MAX_SEGMENT_LENGTH allows; the rest comes back as new targets).
+			var rest = _merge_into_previous(placed[placed.size() - 1], note)
+			if not rest.is_empty():
+				_requeue_rest(queue, index, rest)
+			continue
 		if best < 0:
-			if placed.is_empty():
-				best = 0
-			else:
-				# No lane can take this target without breaking a rule: it joins the previous target.
-				_append_to_segment(placed[placed.size() - 1], note)
-				continue
+			best = 0
 
 		note["lane"] = best
 		previous_lane = best
@@ -638,14 +710,22 @@ func spawn_note(note_data):
 	var spawn_angle = -180.0 + lane * (360.0 / LANE_COUNT)
 	var outward_direction = Vector2.from_angle(deg_to_rad(spawn_angle))
 	var lane_speed = _lane_speed[lane]
-	var spawn_distance = lane_speed * note_data["travel_time"]
+	# The distance is measured from the time that is really left, not from travel_time: targets are
+	# spawned in chart order, travel_time differs per target and frames are discrete, so a target can
+	# spawn later than planned. It still arrives exactly at its time. It is never closer than
+	# 1.2 s (the travel_time minimum) minus one frame, so at normal frame rates it still appears
+	# off-screen (lane_speed puts 1.2 s at NOTE_SPAWN_MARGIN beyond the screen edge). After a very
+	# long frame (about 1.1 s or more) the target can start inside the miss ring and is removed as
+	# missed at once. The time left can even be negative; it is clamped to 0 so that the target is
+	# placed at the Player and not on the opposite side of it.
+	var spawn_distance = lane_speed * max(note_data["time"] - music_time, 0.0)
 	var spawn_point = player_position + outward_direction * spawn_distance
 
 	note.global_position = spawn_point
 	note.note_speed = lane_speed
 
 	note.setup(
-		note_data["time"] - note_data["travel_time"],
+		music_time,
 		pitches,
 		player_position,
 		note_data["time"]
