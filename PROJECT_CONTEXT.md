@@ -98,8 +98,8 @@ Python simulations on the built-in melody, a dense synthetic piece and a steady 
 - **travel_time**: first target 3.0 s; others `clamp(remap(gap, 0.25, 1.25, 1.2, 3.0), 1.2, 3.0)` where `gap` is the time since the previous target.
 - `note_travel_time = 3.5` is only the lead-in: `music_time` starts at `-3.5`. Game clock and chart clock are the same clock.
 - **Colour**: cold -> hot -> cold. The hottest moment is the middle of the visible flight, measured to the miss ring (`get_ideal_time()` in `note.gd`).
-- **Score**: `timing_error = shot_time - note.get_ideal_time()`; `accuracy = max(0, 1 - |error| / 0.5)`; points = `round(accuracy * 100)`, so a perfect hit gives 100. `add_score()` in `main.gd` updates the label.
-- **Rank**: percent of `targets * MAX_SCORE_PER_NOTE`, thresholds in the `RANKS` constant (SSS 95, SS 90, S 80, A 70, B 60, C 50, D 40, E 25, F 0).
+- **Score**: `timing_error = shot_time - note.get_ideal_time()`; `accuracy = max(0, 1 - |error| / HIT_WINDOW)` (0.5 s); points = `round(accuracy * MAX_SCORE_PER_NOTE)`, so a perfect hit gives 100. Both constants are in `player.gd`. `add_score()` in `main.gd` updates the label.
+- **Rank**: percent of `targets * MAX_SCORE_PER_NOTE` (`main.gd` reads it from `player.gd` through the `PlayerScript` preload), thresholds in the `RANKS` constant (SSS 95, SS 90, S 80, A 70, B 60, C 50, D 40, E 25, F 0).
 - **Shot range**: the ray stops at the screen edge (`_ray_viewport_exit_distance`), so off-screen targets cannot be hit.
 - **Sound**: `play_note_sound(pitch, duration)` creates a new `AudioStreamPlayer` per sound, `pitch_scale = 2^((pitch - 60) / 12)`, holds it for `duration`, fades out in 0.25 s, then frees it. `play_steps()` plays the steps of a hit target with their offsets.
 - **Melody playback**: `_collect_playback_events()` builds a time-sorted list from the `steps` of all hit targets (`_was_hit()` matches `orig_time` and pitches); `_play_events()` plays it and can be cancelled.
@@ -114,6 +114,8 @@ Python simulations on the built-in melody, a dense synthetic piece and a steady 
 | `MAX_TARGETS_PER_LANE` / `LANE_SPREAD_WINDOW` | `main.gd` | 3 / 5.0 | per-lane limit |
 | `MAX_LANES_IN_WINDOW` / `LANE_WINDOW` | `main.gd` | 2 / 1.0 | lanes used in a short window |
 | `RANKS` | `main.gd` | see above | rank thresholds in percent |
+| `MAX_SCORE_PER_NOTE` | `player.gd` | 100 | points for a perfect hit |
+| `HIT_WINDOW` | `player.gd` | 0.5 | timing error (seconds) at which the points fall to 0 |
 | `TXT_*` | `main.gd` | English | all UI texts |
 | `MISS_BOUNDARY_RADIUS` | `miss_boundary.gd` | 100 | miss ring radius |
 

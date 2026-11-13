@@ -3,21 +3,18 @@ extends Area2D
 const COLOR_FAR = Color(0.35, 0.55, 0.85, 1.0)
 const COLOR_NEAR = Color(1.0, 0.5, 0.2, 1.0)
 
-@export var time: float
-@export var pitches: Array
-@export var note_speed = 100.0
+var pitches: Array
+var note_speed = 100.0
 var arrival_time: float
 var visible_duration = 0.0
 var target_position: Vector2
 var direction: Vector2
-var duration = 1.0
 var steps = []
 var _tail: Line2D
 
 @onready var visual = $Polygon2D
 
-func setup(note_time: float, note_pitches: Array, note_target_position: Vector2, note_arrival_time: float):
-	time = note_time
+func setup(note_pitches: Array, note_target_position: Vector2, note_arrival_time: float):
 	pitches = note_pitches
 	arrival_time = note_arrival_time
 	target_position = note_target_position

@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="AudioGamePrototype"
+config/name="MusicBullet"
 run/main_scene="uid://dtri3r2kg1naw"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"

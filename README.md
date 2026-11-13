@@ -61,7 +61,7 @@ Problems this game had to solve:
 - **Hitting what you cannot see.** The shot ray is cut at the screen edge.
 - **Playing any music.** A converter built into the game reads MusicXML, including several voices, ties, tempo changes and compressed files.
 
-All the limits are constants at the top of `main.gd` (for example `MERGE_GAP`, `MAX_VISIBLE_TARGETS`, `MAX_TARGETS_PER_LANE`, `RANKS`) and can be tuned.
+All the limits are constants at the top of `main.gd` (for example `MERGE_GAP`, `MAX_VISIBLE_TARGETS`, `MAX_TARGETS_PER_LANE`, `RANKS`) and can be tuned. The scoring constants (`MAX_SCORE_PER_NOTE`, `HIT_WINDOW`) are at the top of `player.gd`.
 
 ## Known limitations
 

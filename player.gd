@@ -2,6 +2,11 @@ extends CharacterBody2D
 
 const RAYCAST_MARGIN = 100.0
 
+# Scoring: a perfect hit gives MAX_SCORE_PER_NOTE points; the points fall linearly to 0 at a
+# timing error of HIT_WINDOW seconds. main.gd uses MAX_SCORE_PER_NOTE for the rank.
+const MAX_SCORE_PER_NOTE = 100.0
+const HIT_WINDOW = 0.5
+
 @onready var muzzle = $Muzzle
 @onready var aim_line = $AimLine
 @onready var note_audio = $NoteAudio
@@ -94,8 +99,8 @@ func handle_note_hit(note, shot_time):
 	var timing_error = shot_time - note.get_ideal_time()
 	var absolute_error = abs(timing_error)
 
-	var accuracy = max(0.0, 1.0 - absolute_error / 0.5)
-	var note_score = round(accuracy * 100)
+	var accuracy = max(0.0, 1.0 - absolute_error / HIT_WINDOW)
+	var note_score = round(accuracy * MAX_SCORE_PER_NOTE)
 	var recorded_note = {
 		"pitches": note.pitches,
 		"time": shot_time,

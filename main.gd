@@ -3,6 +3,8 @@ extends Node2D
 @export var note_scene: PackedScene
 
 const ChartImporter = preload("res://chart_importer.gd")
+# The scoring constants (MAX_SCORE_PER_NOTE, HIT_WINDOW) live in player.gd, which gives the points.
+const PlayerScript = preload("res://player.gd")
 
 
 const NOTE_SPAWN_MARGIN = 100.0
@@ -49,9 +51,6 @@ const TXT_MELODY_INFO = "%d targets, %d s"
 const TXT_BUILT_IN_TITLE = "FirstLevel (built-in)"
 const TXT_DIALOG_TITLE = "Choose a MusicXML file"
 const TXT_DIALOG_FILTER = "*.mxl, *.musicxml, *.xml ; MusicXML files"
-
-# Score of one perfect hit (must match the maximum score given by player.gd).
-const MAX_SCORE_PER_NOTE = 100.0
 
 # Rank thresholds: minimum percent of the maximum possible score, best rank first.
 const RANKS = [
@@ -437,7 +436,7 @@ func _show_results():
 	_clear_notes()
 	$Player.visible = false
 	_score_label.visible = false
-	var max_score = notes.size() * MAX_SCORE_PER_NOTE
+	var max_score = notes.size() * PlayerScript.MAX_SCORE_PER_NOTE
 	var percent = 0.0
 	if max_score > 0.0:
 		percent = 100.0 * score / max_score
@@ -725,12 +724,10 @@ func spawn_note(note_data):
 	note.note_speed = lane_speed
 
 	note.setup(
-		music_time,
 		pitches,
 		player_position,
 		note_data["time"]
 	)
-	note.duration = note_data.get("duration", 1.0)
 	note.steps = note_data["steps"]
 	note.set_segment(note_data["steps"].back()["offset"])
 
