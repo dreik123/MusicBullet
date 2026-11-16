@@ -2,9 +2,9 @@ extends Node2D
 
 @export var note_scene: PackedScene
 
-const ChartImporter = preload("res://chart_importer.gd")
+const ChartImporter = preload("res://chart/chart_importer.gd")
 # The scoring constants (MAX_SCORE_PER_NOTE, HIT_WINDOW) live in player.gd, which gives the points.
-const PlayerScript = preload("res://player.gd")
+const PlayerScript = preload("res://player/player.gd")
 
 
 const NOTE_SPAWN_MARGIN = 100.0
@@ -667,7 +667,7 @@ func _circular_lane_distance(a, b):
 	return min(distance, LANE_COUNT - distance)
 
 func create_miss_boundary():
-	var miss_boundary = load("res://miss_boundary.gd").new()
+	var miss_boundary = load("res://player/miss_boundary.gd").new()
 	miss_boundary.name = "MissBoundary"
 	$Player.add_child(miss_boundary)
 

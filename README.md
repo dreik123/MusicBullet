@@ -21,7 +21,7 @@ Musical targets fly toward you from eight directions. Aim, shoot them at the rig
 
 1. Install Godot 4.
 2. Open the project folder (the one with `project.godot`) in Godot.
-3. Press Play (F5). If Godot asks for a main scene, choose `main.tscn`.
+3. Press Play (F5). If Godot asks for a main scene, choose `game/main.tscn`.
 
 ## Use your own music
 
@@ -42,13 +42,16 @@ The built-in level is an original piano piece, "FirstLevel" (4/4, 120 BPM, about
 
 ## Project structure
 
+Files are grouped by game part: a scene, its scripts and its assets live in one folder.
+
 | File | What it does |
 | --- | --- |
-| `main.gd` | Game states, menu, score, results and rank, chart processing, spawning, melody replay |
-| `player.gd` | Aiming (8 directions), instant shot, sound on hit, scoring |
-| `note.gd` | A flying target: movement, colour timing indicator, tail of merged notes |
-| `miss_boundary.gd` | The ring around the player |
-| `chart_importer.gd` | Reads MusicXML files and converts them into the game's melody format |
+| `game/main.tscn`, `game/main.gd` | Main scene. Game states, menu, score, results and rank, chart processing, spawning, melody replay |
+| `player/player.gd` | Aiming (8 directions), instant shot, sound on hit, scoring |
+| `player/miss_boundary.gd` | The ring around the player |
+| `note/note.tscn`, `note/note.gd` | A flying target: movement, colour timing indicator, tail of merged notes |
+| `chart/chart_importer.gd` | Reads MusicXML files and converts them into the game's melody format |
+| `audio/note_piano.wav` | The piano sample used for all sounds |
 | `PROJECT_CONTEXT.md` | Detailed technical notes, mainly for AI coding assistants |
 
 ## Design notes
