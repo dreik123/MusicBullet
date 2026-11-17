@@ -12,7 +12,7 @@ const HIT_WINDOW = 0.5
 @onready var note_audio = $NoteAudio
 
 func _ready():
-	note_audio.stream = load("res://note_piano.wav")
+	note_audio.stream = load("res://audio/note_piano.wav")
 
 func _process(delta):
 	var mouse_pos = get_global_mouse_position()

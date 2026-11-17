@@ -30,14 +30,18 @@ A target is **not always one note**: simultaneous notes (chords) and very fast r
 
 ## Files
 
+Files are grouped by game part (one folder per part, as the Godot docs recommend): a scene, its scripts and its own assets stay together. The Player has no scene of its own yet (its node lives in `game/main.tscn`), so `player/` holds only scripts. `project.godot`, `icon.svg` and the docs stay in the root.
+
 | File | Role |
 | --- | --- |
-| `main.gd` | Root `Node2D` of `main.tscn`. Clock, chart processing, spawning, UI (built from code), score, rank, level end, melody playback |
-| `player.gd` | `CharacterBody2D`. Aim snapping, hitscan shot, sound on hit, scoring, recording hits |
-| `note.gd` | `Area2D` target. Movement, colour timing indicator, segment tail, ideal hit time |
-| `miss_boundary.gd` | `Node2D` created from code and added to the Player. Draws the miss ring |
-| `chart_importer.gd` | MusicXML -> chart converter (static functions) |
-| `note_piano.wav` | The only sound sample (middle C piano) |
+| `game/main.tscn` | Main scene (`run/main_scene`, referenced by UID): `Main` with the `Player` node and its children |
+| `game/main.gd` | Root `Node2D` of `main.tscn`. Clock, chart processing, spawning, UI (built from code), score, rank, level end, melody playback |
+| `player/player.gd` | `CharacterBody2D`. Aim snapping, hitscan shot, sound on hit, scoring, recording hits |
+| `player/miss_boundary.gd` | `Node2D` created from code and added to the Player. Draws the miss ring |
+| `note/note.tscn`, `note/note.gd` | `Area2D` target. Movement, colour timing indicator, segment tail, ideal hit time |
+| `chart/chart_importer.gd` | MusicXML -> chart converter (static functions) |
+| `audio/note_piano.wav` | The only sound sample (middle C piano) |
+| `docs/` | README screenshot |
 
 All UI is created in code (`CanvasLayer` + `Control` nodes). Do not edit `.tscn` files by hand.
 
@@ -134,6 +138,7 @@ Python simulations on the built-in melody, a dense synthetic piece and a steady 
 - GDScript for Godot 4, tabs for indentation. Use the built-in `remap()`. No Godot 3 syntax.
 - **Everything written into files must be in English** (code, comments, UI texts, docs).
 - Do not edit `.tscn` files by hand; create nodes from code.
+- Moving or renaming a file: preferably in the Godot editor (FileSystem dock), which updates all references. Without the editor: `git mv` the file together with its `.uid` / `.import` file, then update every `res://` path (`preload`/`load` in scripts, `path=` of `ext_resource` lines in `.tscn` — the only hand edit allowed there —, `source_file` in `.import`; the imported file name in `.import` is `<name>-<md5 of the res:// path>`). Search for the old path afterwards, then open the project in Godot once and commit what it rewrites.
 - Before adding a function or variable, search the project for an existing one with the same name and edit it in place. Duplicated functions were the most common failure in this project.
 - When asked to show existing code, paste it verbatim from the file; never reconstruct it from memory.
 - Replacing a whole file overwrites local edits: check `git diff` afterwards.
